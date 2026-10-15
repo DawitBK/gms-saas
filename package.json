@@ -1,0 +1,29 @@
+{
+  "name": "gms-production-v9",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GMS Enterprise monorepo — visitor and access-management portal",
+  "scripts": {
+    "setup:env": "node tools/setup-env.js backend && node tools/setup-env.js frontend",
+    "dev:infra": "docker compose -f docker-compose.dev.yml up -d db redis",
+    "dev:infra:down": "docker compose -f docker-compose.dev.yml down",
+    "dev:infra:logs": "docker compose -f docker-compose.dev.yml logs -f db redis",
+    "docker:up": "docker compose --env-file backend/.env.production up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:restart": "docker compose restart",
+    "docker:migrate": "docker compose exec backend npm run migrate:prod",
+    "docker:seed": "docker compose exec backend node scripts/run-sequelize-cli.js production db:seed --seed 000-core-seeder.js",
+    "docker:status": "docker compose ps",
+    "docker:rebuild": "docker compose --env-file backend/.env.production up -d --build --force-recreate",
+    "test": "node tools/run-all-tests.js all",
+    "test:all": "node tools/run-all-tests.js all",
+    "test:ci": "node tools/run-all-tests.js ci",
+    "test:manual": "node tools/run-all-tests.js manual",
+    "test:docker": "node tools/run-all-tests.js docker",
+    "test:backend": "npm test --prefix backend",
+    "test:frontend": "npm run lint --prefix frontend && npm run build --prefix frontend",
+    "test:status": "node tools/generate-test-status.mjs backend/test-results.json docs/TEST_STATUS.md GMS",
+    "check:env-files": "node tools/check-tracked-env-files.js"
+  }
+}

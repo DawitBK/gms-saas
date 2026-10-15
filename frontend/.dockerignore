@@ -1,0 +1,10 @@
+node_modules
+.next
+.env.local
+.env.*
+!.env.example
+!.env.docker-build
+*.log
+*.out
+*.err
+coverage

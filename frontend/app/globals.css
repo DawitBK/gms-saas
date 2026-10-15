@@ -1,0 +1,668 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .ui-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(51 65 85 / 0.95) transparent;
+  }
+
+  .ui-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .ui-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .ui-scrollbar::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    background-color: rgb(51 65 85 / 0.95);
+  }
+
+  .ui-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(71 85 105 / 0.98);
+  }
+
+  .ui-card {
+    @apply rounded-3xl-enterprise border border-surface-border bg-surface-card/80 p-6;
+    backdrop-filter: blur(var(--enterprise-blur, 4px));
+  }
+
+  .ui-card-elevated {
+    @apply shadow-lg shadow-black/20;
+  }
+
+  .ui-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .ui-btn-primary {
+    @apply border-brand-primary/40 bg-brand-primary text-surface-background hover:bg-brand-accent hover:border-brand-accent;
+  }
+
+  .ui-btn-secondary {
+    @apply border-surface-border bg-surface-background/60 text-content-base hover:border-brand-primary/50;
+  }
+
+  .ui-btn-danger {
+    @apply border-rose-500/30 bg-transparent text-rose-200 hover:bg-rose-500/10;
+  }
+
+  .ui-btn-ghost {
+    @apply border-transparent bg-transparent text-content-muted hover:border-surface-border hover:bg-surface-card/70;
+  }
+
+  .ui-input {
+    @apply w-full rounded-2xl-enterprise border border-surface-border bg-surface-background px-4 py-3 text-content-base outline-none placeholder:text-content-dimmed focus-visible:ring-2 focus-visible:ring-brand-primary/50;
+  }
+
+  .ui-table-row {
+    @apply border-b border-surface-border bg-surface-card/50 transition-colors hover:bg-surface-card;
+  }
+
+  .ui-surface {
+    @apply rounded-2xl-enterprise border border-surface-border bg-surface-background/60;
+  }
+
+  .ui-hero {
+    @apply ui-card ui-card-elevated rounded-3xl-enterprise p-6 sm:p-8;
+    background-image:
+      radial-gradient(
+        circle at top left,
+        rgb(var(--brand-primary) / 0.18),
+        transparent 40%
+      ),
+      linear-gradient(
+        135deg,
+        rgb(var(--surface-card) / 0.96),
+        rgb(var(--surface-background) / 1)
+      );
+  }
+}
+
+:root {
+  /* Brand Tokens (Base GMS Cyan/Blue) */
+  --brand-primary: 56 189 248; /* sky-400 */
+  --brand-secondary: 59 130 246; /* blue-500 */
+  --brand-accent: 34 211 238; /* cyan-400 */
+
+  /* Surface Tokens */
+  --surface-background: 2 6 23; /* slate-950 */
+  --surface-card: 15 23 42; /* slate-900 */
+  --surface-overlay: 30 41 59; /* slate-800 */
+  --surface-border: 51 65 85; /* slate-700 */
+
+  /* Content Tokens */
+  --content-base: 255 255 255;
+  --content-muted: 148 163 184; /* slate-400 */
+  --content-dimmed: 100 116 139; /* slate-500 */
+
+  /* Fallbacks */
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 0, 0, 0;
+  --background-end-rgb: 0, 0, 0;
+
+  /* Sidebar — always dark in all themes (matching DMS) */
+  --sidebar-bg: #0d0f1a;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-text: #64748b;
+  --sidebar-text-hover: #94a3b8;
+  --sidebar-text-active: #e2e8f0;
+  --sidebar-active-bg: rgba(99, 102, 241, 0.14);
+  --sidebar-active-border: #6366f1;
+  --sidebar-hover-bg: rgba(255, 255, 255, 0.05);
+  --sidebar-section-text: #5a6a82;
+  --sidebar-logo-text: #f1f5f9;
+  --sidebar-logo-sub: #64748b;
+}
+
+html,
+body {
+  height: 100%;
+  overscroll-behavior: contain;
+}
+
+#__next {
+  min-height: 100%;
+  overflow-y: auto;
+}
+
+body {
+  margin: 0;
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgb(56 189 248 / 0.28);
+  color: rgb(2 6 23);
+}
+
+a,
+button,
+input,
+select,
+textarea {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(56 189 248 / 0.45);
+}
+
+/* ------------------------------------------------------------------ */
+/* Light Theme Design System                                          */
+/* ------------------------------------------------------------------ */
+
+html.theme-light {
+  color-scheme: light;
+  /* Light mode sidebar */
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e2e8f0;
+  --sidebar-text: #64748b;
+  --sidebar-text-hover: #334155;
+  --sidebar-text-active: #0f172a;
+  --sidebar-active-bg: #f1f5f9;
+  --sidebar-active-border: #6366f1;
+  --sidebar-hover-bg: #f8fafc;
+  --sidebar-section-text: #94a3b8;
+  --sidebar-logo-text: #0f172a;
+  --sidebar-logo-sub: #64748b;
+
+  /* Override dark surface tokens so .ui-hero and gradient sections render light */
+  --surface-background: 248 250 252;   /* slate-50  */
+  --surface-card: 255 255 255;          /* white     */
+  --surface-overlay: 241 245 249;       /* slate-100 */
+  --surface-border: 226 232 240;        /* slate-200 */
+  --content-base: 15 23 42;             /* slate-900 */
+  --content-muted: 100 116 139;         /* slate-500 */
+  --content-dimmed: 148 163 184;        /* slate-400 */
+}
+
+html.theme-light body {
+  --foreground-rgb: 15, 23, 42;
+  --background-start-rgb: 248, 250, 252;
+  --background-end-rgb: 241, 245, 249;
+  background: #f8fafc;
+}
+
+/* Sidebar in light mode - light/white sidebar */
+html.theme-light aside.border-r,
+html.theme-light [class*="sidebar"],
+html.theme-light aside {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Sidebar nav items in light mode - use proper hover/active states */
+
+/* Neutralize dark-specific backgrounds in light mode */
+html.theme-light .bg-slate-950,
+html.theme-light .bg-slate-900,
+html.theme-light .bg-slate-950\/95,
+html.theme-light .bg-slate-950\/80,
+html.theme-light .bg-slate-950\/70,
+html.theme-light .bg-slate-950\/60,
+html.theme-light .bg-slate-900\/80,
+html.theme-light .bg-slate-900\/70 {
+  background-color: #ffffff !important;
+}
+
+html.theme-light .bg-slate-950\/50 {
+  background-color: rgba(248, 250, 252, 0.5) !important;
+}
+
+html.theme-light .bg-slate-800,
+html.theme-light .bg-slate-800\/90,
+html.theme-light .bg-slate-800\/80,
+html.theme-light .bg-slate-800\/50 {
+  background-color: #f1f5f9 !important;
+}
+
+/* Border overrides for light mode */
+html.theme-light .border-slate-800,
+html.theme-light .border-slate-800\/90,
+html.theme-light .border-slate-800\/80,
+html.theme-light .border-slate-800\/50 {
+  border-color: #e2e8f0 !important;
+}
+
+html.theme-light .hover\:bg-slate-800:hover,
+html.theme-light .hover\:bg-slate-900:hover {
+  background-color: #f1f5f9 !important;
+}
+
+html.theme-light .hover\:text-white:hover {
+  color: #0f172a !important;
+}
+
+/* UI Card Light Mode */
+html.theme-light .ui-card {
+  border-color: #e2e8f0 !important;
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 4px 6px -1px rgba(0, 0, 0, 0.05),
+    0 2px 4px -2px rgba(0, 0, 0, 0.05);
+}
+
+html.theme-light .ui-card-elevated {
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.04),
+    0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  border-color: #e2e8f0 !important;
+}
+
+/* UI Buttons Light Mode */
+html.theme-light .ui-btn-secondary {
+  border-color: #e2e8f0 !important;
+  background-color: #ffffff !important;
+  color: #334155 !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+html.theme-light .ui-btn-secondary:hover {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.theme-light .ui-btn-ghost {
+  color: #475569 !important;
+}
+html.theme-light .ui-btn-ghost:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* UI Inputs Light Mode */
+html.theme-light .ui-input {
+  border-color: #e2e8f0 !important;
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* Typography & Contrast Light Mode */
+html.theme-light .text-white,
+html.theme-light .text-slate-100 {
+  color: #0f172a !important;
+}
+html.theme-light .text-slate-200 {
+  color: #1e293b !important;
+}
+html.theme-light .text-slate-300 {
+  color: #475569 !important;
+}
+html.theme-light .text-slate-400 {
+  color: #64748b !important;
+}
+html.theme-light .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+/* Status Accents Light Mode */
+html.theme-light .text-emerald-400 {
+  color: #059669 !important;
+}
+html.theme-light .bg-emerald-500\/10 {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+}
+html.theme-light .border-emerald-500\/30 {
+  border-color: rgba(16, 185, 129, 0.2) !important;
+}
+html.theme-light .text-sky-400 {
+  color: #0284c7 !important;
+}
+html.theme-light .bg-sky-500\/10 {
+  background-color: rgba(14, 165, 233, 0.12) !important;
+}
+html.theme-light .border-sky-500\/30 {
+  border-color: rgba(14, 165, 233, 0.2) !important;
+}
+html.theme-light .text-rose-400 {
+  color: #e11d48 !important;
+}
+html.theme-light .bg-rose-500\/10 {
+  background-color: rgba(244, 63, 94, 0.12) !important;
+}
+html.theme-light .border-rose-500\/30 {
+  border-color: rgba(244, 63, 94, 0.2) !important;
+}
+html.theme-light .text-amber-400 {
+  color: #d97706 !important;
+}
+html.theme-light .bg-amber-500\/10 {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+}
+html.theme-light .border-amber-500\/30 {
+  border-color: rgba(245, 158, 11, 0.2) !important;
+}
+
+/* Table Light Mode */
+html.theme-light .ui-table-row {
+  border-color: #f1f5f9 !important;
+  background-color: #ffffff !important;
+}
+html.theme-light .ui-table-row:hover {
+  background-color: #f8fafc !important;
+}
+
+html.theme-light thead.bg-slate-900\/50,
+html.theme-light thead.bg-slate-950\/80 {
+  background-color: rgba(248, 250, 252, 0.8) !important;
+}
+
+/* Scrollbar Light Mode */
+html.theme-light .ui-scrollbar {
+  scrollbar-color: #cbd5e1 transparent;
+}
+html.theme-light .ui-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+}
+html.theme-light .ui-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+/* ------------------------------------------------------------------ */
+/* Mobile-only polish                                                  */
+/* ------------------------------------------------------------------ */
+@media (max-width: 640px) {
+  .ui-card {
+    padding: 1rem;
+    border-radius: 1rem;
+  }
+
+  .ui-btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    gap: 0.375rem;
+  }
+
+  .ui-input {
+    padding: 0.625rem 0.875rem;
+    border-radius: 0.875rem;
+  }
+
+  /* Keep status chips and badges from overflowing on narrow devices */
+  [class*="tracking-\\[0\\.22em\\]"],
+  [class*="tracking-\\[0\\.2em\\]"] {
+    letter-spacing: 0.12em !important;
+  }
+
+  table td,
+  table th {
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Dark Blue Theme                                                     */
+/* ------------------------------------------------------------------ */
+html.theme-dark-blue body {
+  --sidebar-bg: #020612;
+  --sidebar-border: rgba(100, 255, 218, 0.08);
+  --sidebar-text: #5a6e8a;
+  --sidebar-text-hover: #8899bb;
+  --sidebar-text-active: #e2eaf9;
+  --sidebar-active-bg: rgba(100, 255, 218, 0.1);
+  --sidebar-active-border: #64ffda;
+  --sidebar-hover-bg: rgba(255, 255, 255, 0.04);
+  --sidebar-section-text: #3a4e6a;
+  --sidebar-logo-text: #e2eaf9;
+  --sidebar-logo-sub: #5a6e8a;
+}
+
+html.theme-dark-blue {
+  color-scheme: dark;
+}
+
+html.theme-dark-blue .bg-slate-950,
+html.theme-dark-blue .bg-slate-900,
+html.theme-dark-blue .bg-slate-950\/95,
+html.theme-dark-blue .bg-slate-950\/80 {
+  background-color: #050d1e !important;
+}
+
+html.theme-dark-blue .bg-slate-950\/50 {
+  background-color: rgba(5, 13, 30, 0.5) !important;
+}
+
+html.theme-dark-blue .bg-slate-800,
+html.theme-dark-blue .bg-slate-800\/90,
+html.theme-dark-blue .bg-slate-800\/80,
+html.theme-dark-blue .bg-slate-800\/50 {
+  background-color: #091428 !important;
+}
+
+html.theme-dark-blue .border-slate-800\/90,
+html.theme-dark-blue .border-slate-800\/50,
+html.theme-dark-blue .border-slate-800 {
+  border-color: #172a48 !important;
+}
+
+html.theme-dark-blue .text-white,
+html.theme-dark-blue .text-slate-100 {
+  color: #e2eaf9 !important;
+}
+
+html.theme-dark-blue .text-slate-200 {
+  color: #c8d6e8 !important;
+}
+
+html.theme-dark-blue .text-slate-300 {
+  color: #8899bb !important;
+}
+
+html.theme-dark-blue .text-slate-400 {
+  color: #607090 !important;
+}
+
+html.theme-dark-blue .text-slate-500 {
+  color: #4a5e7a !important;
+}
+
+/* Sidebar specific overrides for dark-blue - matching DMS */
+html.theme-dark-blue aside.border-r,
+html.theme-dark-blue [class*="sidebar"],
+html.theme-dark-blue aside {
+  background-color: #020612 !important;
+  border-color: rgba(100, 255, 218, 0.08) !important;
+}
+
+html.theme-dark-blue .text-cyan-400 {
+  color: #64ffda !important;
+}
+
+html.theme-dark-blue .hover\:text-cyan-400:hover {
+  color: #64ffda !important;
+}
+
+html.theme-dark-blue .bg-cyan-500\/50 {
+  background-color: rgba(100, 255, 218, 0.3) !important;
+}
+
+/* ------------------------------------------------------------------ */
+/* Dark Black Theme                                                    */
+/* ------------------------------------------------------------------ */
+html.theme-dark-black body {
+  --sidebar-bg: #050505;
+  --sidebar-border: rgba(255, 255, 255, 0.05);
+  --sidebar-text: #6b7280;
+  --sidebar-text-hover: #a8a8a8;
+  --sidebar-text-active: #fafafa;
+  --sidebar-active-bg: rgba(255, 255, 255, 0.06);
+  --sidebar-active-border: #6b7280;
+  --sidebar-hover-bg: rgba(255, 255, 255, 0.03);
+  --sidebar-section-text: #4a4a4a;
+  --sidebar-logo-text: #fafafa;
+  --sidebar-logo-sub: #6b7280;
+}
+
+html.theme-dark-black {
+  color-scheme: dark;
+}
+
+html.theme-dark-black .bg-slate-950,
+html.theme-dark-black .bg-slate-900,
+html.theme-dark-black .bg-slate-950\/95,
+html.theme-dark-black .bg-slate-950\/80 {
+  background-color: #000000 !important;
+}
+
+html.theme-dark-black .bg-slate-950\/50 {
+  background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+html.theme-dark-black .bg-slate-800,
+html.theme-dark-black .bg-slate-800\/90,
+html.theme-dark-black .bg-slate-800\/80,
+html.theme-dark-black .bg-slate-800\/50 {
+  background-color: #0a0a0a !important;
+}
+
+html.theme-dark-black .border-slate-800\/90,
+html.theme-dark-black .border-slate-800\/50,
+html.theme-dark-black .border-slate-800 {
+  border-color: #1f1f1f !important;
+}
+
+html.theme-dark-black .text-white,
+html.theme-dark-black .text-slate-100 {
+  color: #fafafa !important;
+}
+
+html.theme-dark-black .text-slate-200 {
+  color: #e0e0e0 !important;
+}
+
+html.theme-dark-black .text-slate-300 {
+  color: #a8a8a8 !important;
+}
+
+html.theme-dark-black .text-slate-400 {
+  color: #6b7280 !important;
+}
+
+html.theme-dark-black .text-slate-500 {
+  color: #4a4a4a !important;
+}
+
+/* Sidebar specific overrides for dark-black - matching DMS */
+html.theme-dark-black aside.border-r,
+html.theme-dark-black [class*="sidebar"],
+html.theme-dark-black aside {
+  background-color: #050505 !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* ────────────────────────────────────────────────────────────────── */
+/* GMS Sidebar Classes & Extra Light Mode Overrides                    */
+/* ────────────────────────────────────────────────────────────────── */
+
+/* Custom sidebar classes utilizing the CSS variables */
+.gms-sidebar {
+  background-color: var(--sidebar-bg) !important;
+  border-color: var(--sidebar-border) !important;
+}
+.gms-sidebar-logo-text {
+  color: var(--sidebar-logo-text) !important;
+}
+.gms-sidebar-logo-sub {
+  color: var(--sidebar-logo-sub) !important;
+}
+.gms-sidebar-section-text {
+  color: var(--sidebar-section-text) !important;
+}
+.gms-sidebar-nav-item {
+  color: var(--sidebar-text) !important;
+  background-color: transparent !important;
+  transition: all 120ms ease;
+}
+.gms-sidebar-nav-item:hover {
+  color: var(--sidebar-text-hover) !important;
+  background-color: var(--sidebar-hover-bg) !important;
+}
+.gms-sidebar-nav-item--active {
+  color: var(--sidebar-text-active) !important;
+  background-color: var(--sidebar-active-bg) !important;
+  box-shadow: inset 2px 0 0 0 var(--sidebar-active-border) !important;
+}
+.gms-sidebar-text-muted {
+  color: var(--sidebar-text) !important;
+}
+.gms-sidebar-btn {
+  border-color: var(--sidebar-border) !important;
+  color: var(--sidebar-text) !important;
+  background-color: var(--sidebar-hover-bg) !important;
+  transition: all 120ms ease;
+}
+.gms-sidebar-btn:hover {
+  color: var(--sidebar-text-active) !important;
+  background-color: var(--sidebar-active-bg) !important;
+  border-color: var(--sidebar-active-border) !important;
+}
+
+/* Extra slate transparency background overrides for light mode */
+html.theme-light .bg-slate-900\/50,
+html.theme-light .bg-slate-900\/40,
+html.theme-light .bg-slate-900\/30,
+html.theme-light .bg-slate-900\/20,
+html.theme-light .bg-slate-900\/10,
+html.theme-light .bg-slate-950\/50,
+html.theme-light .bg-slate-950\/40,
+html.theme-light .bg-slate-950\/30,
+html.theme-light .bg-slate-950\/20,
+html.theme-light .bg-slate-950\/10 {
+  background-color: rgba(255, 255, 255, 0.75) !important;
+  color: #0f172a !important;
+}
+
+/* Extra slate transparency border overrides for light mode */
+html.theme-light .border-slate-800\/90,
+html.theme-light .border-slate-800\/80,
+html.theme-light .border-slate-800\/70,
+html.theme-light .border-slate-800\/60,
+html.theme-light .border-slate-800\/50,
+html.theme-light .border-slate-800\/40,
+html.theme-light .border-slate-800\/30,
+html.theme-light .border-slate-800\/20,
+html.theme-light .border-slate-800\/10 {
+  border-color: #cbd5e1 !important;
+}
+
+/* Light mode text contrast fixes for cyan and slate-50 */
+html.theme-light .text-slate-50 {
+  color: #0f172a !important;
+}
+html.theme-light .text-cyan-400,
+html.theme-light .text-cyan-500,
+html.theme-light .text-cyan-600 {
+  color: #0891b2 !important;
+}
+html.theme-light .hover\:text-cyan-400:hover,
+html.theme-light .hover\:text-cyan-500:hover {
+  color: #0e7490 !important;
+}
+

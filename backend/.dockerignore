@@ -1,0 +1,15 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+*.log
+*.out
+*.err
+CRASH.log
+error.txt
+error_trace.txt
+migration_error.log
+backend-dev.out.log
+backend-dev.err.log
+coverage

@@ -1,0 +1,133 @@
+services:
+  # Database layer
+  db:
+    image: postgres:15-alpine
+    container_name: gms-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:?Set DB_USER in backend/.env.production and pass it with --env-file backend/.env.production}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in backend/.env.production and pass it with --env-file backend/.env.production}
+      POSTGRES_DB: ${DB_NAME:?Set DB_NAME in backend/.env.production and pass it with --env-file backend/.env.production}
+    ports:
+      - "5433:5432" # Mapped to 5433 to avoid local conflicts
+    volumes:
+      - gms_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis layer for queuing, rate-limiting & websockets
+  redis:
+    image: redis:7-alpine
+    container_name: gms-redis
+    restart: always
+    ports:
+      - "6380:6379" # Mapped to 6380 to avoid local conflicts
+    volumes:
+      - gms_redisdata:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Core API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gms-backend-api
+    init: true
+    restart: always
+    ports:
+      # Platform default; host binding may be overridden without changing the service port.
+      - "${BACKEND_HOST_PORT:-7200}:${PORT:-7200}"
+    env_file:
+      - ./backend/.env.production
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      PORT: ${PORT:-7200}
+      REDIS_URL: redis://redis:6379
+      ENABLE_QUEUE_WORKERS: "false"
+      ENABLE_OUTBOX_POLLING: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const port=process.env.PORT||7200;http=require('http');req=http.get('http://127.0.0.1:'+port+'/api/v1/health',res=>process.exit(res.statusCode===200?0:1));req.on('error',()=>process.exit(1));\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # Backend Outbox Event Processor & Queue Worker
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gms-backend-worker
+    init: true
+    restart: always
+    command: npm run outbox:worker
+    env_file:
+      - ./backend/.env.production
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379
+      ENABLE_QUEUE_WORKERS: "true"
+      ENABLE_OUTBOX_POLLING: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f outbox.worker >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+
+  # Frontend Next.js Web Portal
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:7200/api/v1}
+        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-http://localhost:7200}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:7201}
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-}
+    container_name: gms-frontend
+    init: true
+    restart: always
+    ports:
+      # Platform default; host binding may be overridden without changing the service port.
+      - "${FRONTEND_HOST_PORT:-7201}:7201"
+    env_file:
+      - ./frontend/.env.production
+    environment:
+      PORT: "7201"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "http=require('http');req=http.get('http://127.0.0.1:7201/',res=>process.exit(res.statusCode<500?0:1));req.on('error',()=>process.exit(1));"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+# Optional TLS termination can be added with nginx/caddy in front of frontend/backend.
+# Keep disabled by default so manual PM2 and Apache deployments remain the production path.
+
+volumes:
+  gms_pgdata:
+  gms_redisdata:
