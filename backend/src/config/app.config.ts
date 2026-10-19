@@ -129,6 +129,7 @@ export const appConfig = {
     user: env.SMTP_USER,
     pass: env.SMTP_PASS,
     fromEmail: env.FROM_EMAIL,
+    fromName: env.SMTP_FROM_NAME,
   },
   sendgrid: {
     apiKey: env.SENDGRID_API_KEY,

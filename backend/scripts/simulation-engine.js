@@ -363,9 +363,34 @@ class DailySeq {
   }
 }
 
+/* ---------- Overlap guard ----------
+   The database refuses two ACTIVE unslotted visits in one office at the same time
+   (visits_no_overlap_per_office_unslotted). A visit that would clash is recorded as
+   cancelled (future) or a no-show (past) instead, so history keeps its shape and the insert succeeds. */
+const INACTIVE_STATUSES = new Set(['CANCELLED', 'DECLINED', 'NO_SHOW', 'COMPLETED', 'EXPIRED']);
+const occupied = new Map();
+function resolveOverlaps(visits) {
+  const nowMs = Date.now();
+  for (const v of visits) {
+    if (INACTIVE_STATUSES.has(v.status)) continue;
+    const a = new Date(v.scheduled_start).getTime();
+    const b = new Date(v.scheduled_end).getTime();
+    const list = occupied.get(v.office_id) || [];
+    if (list.some(([x, y]) => a < y && b > x)) {
+      v.status = a < nowMs ? 'NO_SHOW' : 'CANCELLED';
+      v.checked_in_at = null;
+      v.checked_out_at = null;
+    } else {
+      list.push([a, b]);
+      occupied.set(v.office_id, list);
+    }
+  }
+}
+
 /* ---------- Bulk Visit Inserter ---------- */
 async function insertVisitsBatch(visits) {
   if (!visits.length) return [];
+  resolveOverlaps(visits);
 
   const visitValues = visits.map(v => `(
     ${v.guest_id}, ${v.office_id}, ${v.department_id}, ${v.service_id || 'NULL'},
@@ -897,7 +922,7 @@ async function runLiveTurbo(infra, guests) {
           const receptionistId = host ? host.user_id : 1; 
           
           await sequelize.query(
-            `INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, metadata, created_at)
+            `INSERT INTO audit_logs (user_id, action, entity, entity_id, metadata, created_at)
              VALUES (:actor, :action, 'Visit', :vid, :meta, NOW())`,
             {
               replacements: {
@@ -1021,7 +1046,7 @@ async function runLiveTurbo(infra, guests) {
           // We don't CHECK_IN via the engine (to simulate no scan), 
           // but we emit a system-level "Door Activity" event and a "Missing Scan" audit
           await sequelize.query(
-            `INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, metadata, created_at)
+            `INSERT INTO audit_logs (user_id, action, entity, entity_id, metadata, created_at)
              VALUES (1, 'UNAUTHORIZED_ENTRY_DETECTED', 'Visit', :vid, :meta, NOW())`,
             {
               replacements: {

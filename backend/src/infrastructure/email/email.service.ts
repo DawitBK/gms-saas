@@ -223,7 +223,9 @@ export class EmailService {
     });
 
     await transport.sendMail({
-      from: appConfig.smtp.fromEmail,
+      from: appConfig.smtp.fromName
+        ? { name: appConfig.smtp.fromName, address: appConfig.smtp.fromEmail as string }
+        : appConfig.smtp.fromEmail,
       to: input.to,
       subject: input.subject,
       text,

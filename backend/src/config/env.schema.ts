@@ -65,6 +65,8 @@ export const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   FROM_EMAIL: z.string().email().optional(),
+  // Name shown in the recipient's inbox next to FROM_EMAIL (for example "Example Corp Guest Management").
+  SMTP_FROM_NAME: z.string().optional(),
 
   SENDGRID_API_KEY: z.string().optional(),
   SENDGRID_FROM_EMAIL: z.string().email().optional(),
