@@ -2,9 +2,8 @@
 
 import { useLicenseStatus } from "@features/license/hooks";
 import type { LicenseStatus } from "@features/license/types";
-import { useRoleContext } from "@shared/hooks/useRoleContext";
 
-type Notice = { key: string; tone: "amber" | "red" | "slate"; text: string };
+type Notice = { key: string; tone: "amber" | "red"; text: string };
 
 const formatDate = (iso: string | null) => {
   if (!iso) return "";
@@ -14,8 +13,8 @@ const formatDate = (iso: string | null) => {
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-/** Pure, so the wording is in one place: licence status in, the notice to show (or null) out. */
-export function licenseNotice(status: LicenseStatus | undefined, isAdmin: boolean): Notice | null {
+/** Pure, so the wording is in one place: licence status in, the notice to show (or null) out. "No licence configured" shows nothing (owner decision 2026-10-19). */
+export function licenseNotice(status: LicenseStatus | undefined): Notice | null {
   if (!status) return null;
 
   switch (status.state) {
@@ -44,14 +43,6 @@ export function licenseNotice(status: LicenseStatus | undefined, isAdmin: boolea
           ? "The GMS licence has expired and the system is read-only: you can view records but not change them. Contact your administrator."
           : "The GMS licence has expired. Contact your administrator.",
       };
-    case "unconfigured":
-      return isAdmin
-        ? {
-            key: "unconfigured",
-            tone: "slate",
-            text: "No licence is configured for GMS. Everything works; a platform administrator can set one up in the SSO console.",
-          }
-        : null;
     default:
       return null;
   }
@@ -60,20 +51,18 @@ export function licenseNotice(status: LicenseStatus | undefined, isAdmin: boolea
 const toneClass: Record<Notice["tone"], string> = {
   amber: "border-amber-200 bg-amber-50 text-amber-900",
   red: "border-red-200 bg-red-50 text-red-900",
-  slate: "border-slate-700 bg-slate-900 text-slate-400",
 };
 
 export function LicenseBanner() {
-  const { isAdmin } = useRoleContext();
   const { data } = useLicenseStatus();
-  const notice = licenseNotice(data, isAdmin);
+  const notice = licenseNotice(data);
 
   if (!notice) return null;
 
   return (
     <div
       role={notice.tone === "red" ? "alert" : "status"}
-      className={`mb-4 rounded-lg border px-4 py-2 ${notice.tone === "slate" ? "text-xs" : "text-sm"} ${toneClass[notice.tone]}`}
+      className={`mb-4 rounded-lg border px-4 py-2 text-sm ${toneClass[notice.tone]}`}
     >
       {notice.text}
     </div>
