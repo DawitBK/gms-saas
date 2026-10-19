@@ -1,8 +1,12 @@
+import type { LicenseModule } from "@features/license/types";
+
 export type PortalNavLink = {
   href: string;
   label: string;
   allowedRoles?: string[];
   isSuperOnly?: boolean;
+  /** Licence module this entry belongs to; hidden when the licence does not include it (core entries have none). */
+  module?: LicenseModule;
 };
 
 /** A collapsible group of nav links (e.g. "Reports & Audit"). `isSuperOnly`/
@@ -23,37 +27,37 @@ export function isPortalNavGroup(entry: PortalNavEntry): entry is PortalNavGroup
 export const portalLinkSets: Record<string, PortalNavEntry[]> = {
   guest: [
     { href: "/dashboard", label: "Overview" },
-    { href: "/dashboard/book", label: "Book Visit" },
-    { href: "/dashboard/visits", label: "Visits" },
-    { href: "/dashboard/credentials", label: "Credentials" },
-    { href: "/dashboard/notifications", label: "Notifications" },
+    { href: "/dashboard/book", label: "Book Visit", module: "visits" },
+    { href: "/dashboard/visits", label: "Visits", module: "visits" },
+    { href: "/dashboard/credentials", label: "Credentials", module: "credentials" },
+    { href: "/dashboard/notifications", label: "Notifications", module: "notifications" },
     { href: "/dashboard/profile", label: "Profile" },
   ],
   host: [
     { href: "/host", label: "Overview" },
-    { href: "/host/book", label: "Book Visit" },
+    { href: "/host/book", label: "Book Visit", module: "visits" },
     {
       group: "Visit Ops",
       children: [
-        { href: "/host/checkin", label: "Check-In" },
-        { href: "/host/availability", label: "Availability" },
-        { href: "/host/guests", label: "Guests" },
+        { href: "/host/checkin", label: "Check-In", module: "checkin" },
+        { href: "/host/availability", label: "Availability", module: "scheduling" },
+        { href: "/host/guests", label: "Guests", module: "visits" },
       ],
     },
     { href: "/host/services", label: "Services" },
-    { href: "/host/visits", label: "Visits" },
+    { href: "/host/visits", label: "Visits", module: "visits" },
     { href: "/host/reports", label: "Reports" },
-    { href: "/host/notifications", label: "Notifications" },
+    { href: "/host/notifications", label: "Notifications", module: "notifications" },
     { href: "/host/profile", label: "Profile" },
   ],
   reception: [
     { href: "/reception", label: "Overview" },
-    { href: "/reception/guests", label: "Guests" },
-    { href: "/reception/availability", label: "Availability" },
-    { href: "/reception/checkin", label: "Check-In" },
-    { href: "/reception/visits", label: "Visits" },
+    { href: "/reception/guests", label: "Guests", module: "visits" },
+    { href: "/reception/availability", label: "Availability", module: "scheduling" },
+    { href: "/reception/checkin", label: "Check-In", module: "checkin" },
+    { href: "/reception/visits", label: "Visits", module: "visits" },
     { href: "/reception/reports", label: "Reports" },
-    { href: "/reception/notifications", label: "Notifications" },
+    { href: "/reception/notifications", label: "Notifications", module: "notifications" },
     { href: "/reception/profile", label: "Profile" },
   ],
   admin: [
@@ -62,10 +66,10 @@ export const portalLinkSets: Record<string, PortalNavEntry[]> = {
     { href: "/admin/departments", label: "Departments" },
     { href: "/admin/services", label: "Services" },
     { href: "/admin/users", label: "Users" },
-    { href: "/admin/guests", label: "Guests" },
-    { href: "/admin/hosts", label: "Hosts" },
-    { href: "/admin/availability", label: "Availability" },
-    { href: "/admin/visits", label: "Visits" },
+    { href: "/admin/guests", label: "Guests", module: "visits" },
+    { href: "/admin/hosts", label: "Hosts", module: "visits" },
+    { href: "/admin/availability", label: "Availability", module: "scheduling" },
+    { href: "/admin/visits", label: "Visits", module: "visits" },
     {
       group: "Reports & Audit",
       children: [
@@ -74,7 +78,7 @@ export const portalLinkSets: Record<string, PortalNavEntry[]> = {
         { href: "/admin/system-health", label: "System Health" },
       ],
     },
-    { href: "/admin/notifications", label: "Notifications" },
+    { href: "/admin/notifications", label: "Notifications", module: "notifications" },
     { href: "/admin/profile", label: "Profile" },
   ],
 };

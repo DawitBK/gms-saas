@@ -916,6 +916,16 @@ export const swaggerSpec = {
 };
 
 Object.assign(swaggerSpec.paths, {
+  "/license/status": {
+    get: {
+      tags: ["System"],
+      summary: "Platform licence status (state, expiry, seats, enabled modules)",
+      description:
+        "Any authenticated user. state is one of unconfigured | unknown | active | expiring | grace | expired; readOnly is true only for expired under LICENSE_ENFORCEMENT=enforce. See docs/operations/PLATFORM-LICENSING.md.",
+      security: [{ bearerAuth: [] }],
+      responses: { 200: { description: "Licence status" } },
+    },
+  },
   "/availability/time_slots/{id}": {
     delete: { tags: ["Availability"], summary: "Delete a generated time slot", security: [{ bearerAuth: [] }] },
   },

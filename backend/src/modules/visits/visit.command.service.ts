@@ -24,7 +24,7 @@ import {
 } from "../../infrastructure/database/models";
 import { computeSlaDeadline } from "../../config/visit-policy.config";
 import { AuthRepository } from "../auth/auth.repository";
-import { isAdminRole, isReceptionRole } from "../../shared/auth/roles";
+import { isAdminRole, isHostRole, isReceptionRole } from "../../shared/auth/roles";
 import { VisitActor } from "./visit.types";
 import {
   assertNotTerminalVisitStatus,
@@ -61,13 +61,16 @@ import {
  * - SLA enforcement and automated notification dispatch.
  */
 /**
- * Booking a visit for somebody other than yourself is a front-desk action.
- * Admin and reception (and their super_* variants, which `isAdminRole` /
- * `isReceptionRole` already cover) do it for walk-ins; a host or a guest has
- * no reason to, and no way to prove they were asked to.
+ * Booking a visit for somebody other than yourself is a staff action.
+ * Admin, reception and host (and their super_* variants, which `isAdminRole` /
+ * `isReceptionRole` / `isHostRole` already cover) do it for guests they are
+ * expecting; the host's Book Visit screen has always offered existing contacts.
+ * A plain guest has no reason to, and no way to prove they were asked to.
  */
 function canBookOnBehalfOfOthers(roles: string[] = []): boolean {
-  return roles.some((role) => isAdminRole(role) || isReceptionRole(role));
+  return roles.some(
+    (role) => isAdminRole(role) || isReceptionRole(role) || isHostRole(role),
+  );
 }
 
 export class VisitCommandService {

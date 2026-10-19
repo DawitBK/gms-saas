@@ -10,6 +10,7 @@ import { buildVisitScanUrl } from '../../../shared/services/visit-qr-link.servic
 import { resolveCredentialQrPngBuffer, resolveCredentialQrPngDataUri } from '../../../shared/services/credential-qr.service';
 
 import { registerWorker } from './registry';
+import { OTP_PAYLOAD_KEYS, redactOtpFields, resolveJobOtp } from '../../../shared/utils/otp';
 
 if (redisClient) {
   try {
@@ -17,6 +18,8 @@ if (redisClient) {
       QUEUE_NAMES.EMAIL_NOTIFICATION,
       async (job: Job) => {
         await trackJob(QUEUE_NAMES.EMAIL_NOTIFICATION, job, () => processEmailJob(job));
+        // Sent: the job (kept by BullMQ for an hour, longer if it later fails) no longer needs the code.
+        await scrubJobOtp(job);
       },
       {
         connection: redisClient,
@@ -32,15 +35,34 @@ if (redisClient) {
 
     emailWorker.on('failed', (job, err) => {
       logger.error({ jobId: job?.id, name: job?.name, err }, 'Email job failed');
+      // BullMQ keeps failed jobs indefinitely (removeOnFail: false). Once the last
+      // attempt has failed nothing will send the code, so do not keep it either.
+      if (job && job.attemptsMade >= (job.opts?.attempts ?? 1)) void scrubJobOtp(job);
     });
   } catch (err) {
     logger.error({ err }, 'Email worker failed to initialize');
   }
 }
 
+/** Remove a one-time code from a BullMQ job's stored data. Never throws: a scrub failure must not fail a sent e-mail. */
+async function scrubJobOtp(job: Job): Promise<void> {
+  try {
+    const data = job.data as Record<string, unknown> | undefined;
+    if (data && OTP_PAYLOAD_KEYS.some((key) => key in data)) {
+      await job.updateData(redactOtpFields(data));
+    }
+  } catch (err) {
+    logger.warn({ err, jobId: job.id }, 'Could not scrub the one-time code from the e-mail job data');
+  }
+}
+
 async function processEmailJob(job: Job): Promise<void> {
   await processEmailJobData(job.name, job.data as any);
 }
+
+type EmailTemplate =
+  | 'PENDING_APPROVAL' | 'APPROVED' | 'CANCELLED' | 'RESCHEDULED' | 'REASSIGNED' | 'ESCALATED' | 'CHECKED_IN'
+  | 'REGISTRATION_VERIFICATION' | 'PASSWORD_RESET' | 'TWO_FACTOR_AUTH';
 
 export async function processEmailJobData(
   jobName: string,
@@ -51,8 +73,9 @@ export async function processEmailJobData(
     visitId?: number;
     guestId?: number;
     otp?: string;
+    otp_sealed?: string;
     credentialId?: number;
-    template?: 'PENDING_APPROVAL' | 'APPROVED' | 'CANCELLED' | 'RESCHEDULED' | 'REASSIGNED' | 'ESCALATED' | 'CHECKED_IN' | 'REGISTRATION_VERIFICATION';
+    template?: EmailTemplate;
   }
 ): Promise<void> {
   const emailService = new EmailService();
@@ -66,9 +89,8 @@ export async function processEmailJobData(
   const { visitId, guestId, template, credentialId } = data as {
     visitId?: number;
     guestId?: number;
-    otp?: string;
     credentialId?: number;
-    template?: 'PENDING_APPROVAL' | 'APPROVED' | 'CANCELLED' | 'RESCHEDULED' | 'REASSIGNED' | 'ESCALATED' | 'CHECKED_IN' | 'REGISTRATION_VERIFICATION';
+    template?: EmailTemplate;
   };
   const guest = guestId ? await User.findByPk(guestId) : null;
   const visit = visitId ? await Visit.findByPk(visitId) : null;
@@ -112,8 +134,41 @@ export async function processEmailJobData(
   }
 
   switch (template) {
-    case 'REGISTRATION_VERIFICATION': {
-      const { otp } = data as { otp?: string };
+    case 'REGISTRATION_VERIFICATION':
+    case 'PASSWORD_RESET':
+    case 'TWO_FACTOR_AUTH': {
+      // The code arrives sealed (otp_sealed) and is opened only here, at send time.
+      const otp = resolveJobOtp(data as { guestId?: number; otp?: unknown; otp_sealed?: unknown });
+      if (!otp) {
+        // Already redacted (a manual retry of a finished row), tampered, or sealed under a
+        // previous key. Retrying cannot help and the code would have expired anyway.
+        logger.warn({ guestId, template }, 'Skipping one-time-code email: no usable code in the job payload');
+        return;
+      }
+      if (template === 'PASSWORD_RESET') {
+        await emailService.send({
+          to: guest.email,
+          subject: 'Reset your GMS password',
+          html: emailService.renderVisitStatusEmail({
+            guestName: guest.full_name,
+            heading: 'Password reset',
+            body: `Use this code to reset your GMS password: <strong>${otp}</strong> This code will expire in 30 minutes. If you did not ask for a reset, you can ignore this message.`,
+          }),
+        });
+        return;
+      }
+      if (template === 'TWO_FACTOR_AUTH') {
+        await emailService.send({
+          to: guest.email,
+          subject: 'GMS Two-Factor Authentication Code',
+          html: emailService.renderVisitStatusEmail({
+            guestName: guest.full_name,
+            heading: 'Your Verification Code',
+            body: `Your 2FA code is: <strong>${otp}</strong> This code will expire in 10 minutes.`,
+          }),
+        });
+        return;
+      }
       await emailService.send({
         to: guest.email,
         subject: 'Verify your GMS account',

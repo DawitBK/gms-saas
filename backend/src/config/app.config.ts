@@ -1,3 +1,4 @@
+import path from 'path';
 import { env } from './index';
 
 const normalizePath = (value: string) => {
@@ -178,6 +179,26 @@ export const appConfig = {
     queueWorkersEnabled: env.ENABLE_QUEUE_WORKERS,
     outboxPollingEnabled: env.ENABLE_OUTBOX_POLLING,
     unifiAccessPollingEnabled: env.ENABLE_UNIFI_ACCESS_POLLING,
+  },
+  /**
+   * Platform licence (docs/operations/PLATFORM-LICENSING.md, system key `gms`).
+   * `publicTokenPath`, `jwksPath` and `discoveryPath` are the ONLY place the SSO endpoint paths
+   * are written down. They are SSO's BACKEND paths (Apache strips `/sso` before SSO's backend
+   * sees a request), addressed the same way `SSO_API_BASE` callers address it.
+   */
+  license: {
+    system: 'gms' as const,
+    enforcement: env.LICENSE_ENFORCEMENT,
+    ssoUrl: env.LICENSE_SSO_URL.replace(/\/+$/, ''),
+    pollSeconds: env.LICENSE_POLL_SECONDS,
+    issuer: env.LICENSE_ISSUER,
+    publicTokenPath: '/api/v1/licenses/public/gms',
+    jwksPath: '/jwks',
+    discoveryPath: '/.well-known/openid-configuration',
+    requestTimeoutMs: 5_000,
+    dataDir: env.LICENSE_DATA_DIR
+      ? path.resolve(env.LICENSE_DATA_DIR)
+      : path.resolve(process.cwd(), 'data', 'license'),
   },
   webPush: {
     publicKey: env.VAPID_PUBLIC_KEY,

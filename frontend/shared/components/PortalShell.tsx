@@ -27,10 +27,15 @@ import { usePermission } from "@shared/hooks/usePermission";
 import {
   isPortalNavGroup,
   type PortalNavEntry,
+  type PortalNavLink,
 } from "@shared/lib/portal-links";
 import { getCurrentAppPath } from "@shared/lib/auth-redirect";
 import { getRoleLabel, hasAllowedRole } from "@shared/lib/roles";
 import { SystemStatusBanner } from "@shared/components/SystemStatusBanner";
+import { LicenseBanner } from "@shared/components/LicenseBanner";
+import { useLicenseStatus } from "@features/license/hooks";
+import type { LicenseStatus } from "@features/license/types";
+import { isLicenseModuleEnabled } from "@shared/lib/license";
 import { useResetOnChange } from '@shared/hooks/useResetOnChange';
 
 type PortalShellProps = PropsWithChildren<{
@@ -48,12 +53,14 @@ function NavList({
   isSuperRole,
   currentRole,
   variant,
+  licenseStatus,
 }: {
   entries: PortalNavEntry[];
   pathname: string;
   isSuperRole: boolean;
   currentRole: string;
   variant: "desktop" | "mobile";
+  licenseStatus: LicenseStatus | undefined;
 }) {
   const [expandedOverride, setExpandedOverride] = useState<
     Record<string, boolean>
@@ -71,7 +78,10 @@ function NavList({
   const isChildVisible = (link: {
     isSuperOnly?: boolean;
     allowedRoles?: string[];
+    module?: PortalNavLink["module"];
   }) => {
+    // A module the licence does not include is hidden; no licence information means show everything.
+    if (!isLicenseModuleEnabled(licenseStatus, link.module)) return false;
     if (link.isSuperOnly && !isSuperRole) return false;
     if (link.allowedRoles)
       return hasAllowedRole([currentRole], link.allowedRoles);
@@ -165,7 +175,9 @@ export function PortalShell({
   });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const { data: notifications = [] } = useNotifications();
+  const { data: licenseStatus } = useLicenseStatus();
+  const notificationsEnabled = isLicenseModuleEnabled(licenseStatus, "notifications");
+  const { data: notifications = [] } = useNotifications({ enabled: notificationsEnabled });
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
   const unreadCount = notifications.filter((item) => !item.is_read).length;
@@ -291,6 +303,7 @@ export function PortalShell({
               isSuperRole={isSuperRole}
               currentRole={currentRole}
               variant="desktop"
+              licenseStatus={licenseStatus}
             />
           </nav>
 
@@ -337,6 +350,7 @@ export function PortalShell({
           <div className="px-4 py-5 sm:px-6 lg:px-8">
             <div className="mb-4 flex items-center justify-end">
               <div className="relative">
+                {notificationsEnabled ? (<>
                 <button
                   type="button"
                   aria-label="Open notifications"
@@ -410,8 +424,10 @@ export function PortalShell({
                     </Link>
                   </div>
                 ) : null}
+                </>) : null}
               </div>
             </div>
+            <LicenseBanner />
             <SystemStatusBanner />
             {children}
           </div>
@@ -451,6 +467,7 @@ export function PortalShell({
                 isSuperRole={isSuperRole}
                 currentRole={currentRole}
                 variant="mobile"
+                licenseStatus={licenseStatus}
               />
             </nav>
 

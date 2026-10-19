@@ -13,8 +13,25 @@ import {
 } from "../../shared/auth/roles";
 import { requireActorOfficeId as requireAssignedOfficeId } from "../../shared/auth/scope-resolver";
 import { AvailabilityRepository } from "./availability.repository";
+import { logAudit } from "../../shared/services/audit.service";
 
 type AvailabilityActor = { id: number; roles?: string[]; office_id?: number };
+
+/** The fields of a recurring availability rule worth recording in an audit row. */
+function ruleAuditSnapshot(rule: any) {
+  return {
+    host_id: rule.host_id ?? null,
+    office_id: rule.office_id ?? null,
+    recurrence_type: rule.recurrence_type ?? null,
+    day_of_week: rule.day_of_week ?? null,
+    day_of_month: rule.day_of_month ?? null,
+    specific_date: rule.specific_date ?? null,
+    start_time: rule.start_time ?? null,
+    end_time: rule.end_time ?? null,
+    is_available: rule.is_available ?? null,
+    label: rule.label ?? null,
+  };
+}
 
 /**
  * AvailabilityService
@@ -294,6 +311,14 @@ export class AvailabilityService {
     });
 
     await this.materializeRuleSlots(rule, payload.horizon_days ?? 45);
+    await logAudit(
+      actor.id,
+      "AVAILABILITY_RULE_CREATE",
+      "AvailabilityRule",
+      (rule as any).id,
+      null,
+      ruleAuditSnapshot(rule),
+    );
     return this.getHostAvailabilityBoard(actor, targetHostId);
   }
 
@@ -351,6 +376,7 @@ export class AvailabilityService {
         ? String(payload.specific_date ?? (rule as any).specific_date)
         : null;
 
+    const ruleBefore = ruleAuditSnapshot(rule);
     await rule.update({
       recurrence_type: finalType,
       day_of_week: finalDayOfWeek,
@@ -371,6 +397,14 @@ export class AvailabilityService {
     await this.repository.deleteFutureUnbookedSlotsForRule(ruleId);
 
     await this.materializeRuleSlots(rule, payload.horizon_days ?? 45);
+    await logAudit(
+      actor.id,
+      "AVAILABILITY_RULE_UPDATE",
+      "AvailabilityRule",
+      ruleId,
+      ruleBefore,
+      ruleAuditSnapshot(rule),
+    );
     return this.getHostAvailabilityBoard(actor, targetHostId);
   }
 
@@ -411,7 +445,16 @@ export class AvailabilityService {
     const targetHostId = Number((rule as any).host_id);
 
     await this.repository.deleteFutureUnbookedSlotsForRule(ruleId);
+    const ruleBefore = ruleAuditSnapshot(rule);
     await this.repository.deleteRule(rule);
+    await logAudit(
+      actor.id,
+      "AVAILABILITY_RULE_DELETE",
+      "AvailabilityRule",
+      ruleId,
+      ruleBefore,
+      null,
+    );
     return this.getHostAvailabilityBoard(actor, targetHostId);
   }
 
@@ -466,6 +509,20 @@ export class AvailabilityService {
 
     const targetHostId = Number((slot as any).host_id);
     await this.repository.deleteSlot(slot);
+    await logAudit(
+      actor.id,
+      "AVAILABILITY_SLOT_DELETE",
+      "TimeSlot",
+      slotId,
+      {
+        host_id: targetHostId,
+        office_id: (slot as any).office_id ?? null,
+        start_time: (slot as any).start_time ?? null,
+        end_time: (slot as any).end_time ?? null,
+        slot_state: (slot as any).slot_state ?? null,
+      },
+      null,
+    );
 
     return this.getHostAvailabilityBoard(actor, targetHostId);
   }

@@ -20,8 +20,10 @@ import { enqueueJob } from "../../infrastructure/events/outbox.service";
 import { OcrService } from "../../shared/services/ocr.service";
 import { logger } from "../../core/logger/logger";
 import { getSsoGrantedRoles, SsoRolesApiError } from "./sso-roles-client";
-import { generateOtp, hashOtp, otpMatches, otpChallengeIsLive, OTP_PATTERN } from "../../shared/utils/otp";
+import { generateOtp, hashOtp, otpMatches, otpChallengeIsLive, otpEmailJobPayload, OTP_PATTERN } from "../../shared/utils/otp";
 import { isSessionRevoked, revokeUserSessions } from "../../shared/services/session-revocation.service";
+import { logAudit } from "../../shared/services/audit.service";
+import { assertSeatAvailable } from "../license/license.seats";
 
 interface RegisterPayload {
   full_name: string;
@@ -275,11 +277,8 @@ export class AuthService {
           });
           logger.info({ email: user.email }, "2FA OTP sent directly, bypassing outbox/queue (dev mode)");
         } else {
-          await enqueueJob(QUEUE_NAMES.EMAIL_NOTIFICATION, "SendVerification", {
-            guestId: user.id,
-            otp,
-            template: "TWO_FACTOR_AUTH",
-          });
+          // The code is queued sealed (never plaintext in outbox_events) — see otpEmailJobPayload.
+          await enqueueJob(QUEUE_NAMES.EMAIL_NOTIFICATION, "SendVerification", otpEmailJobPayload(user.id, otp, "TWO_FACTOR_AUTH"));
         }
 
         return {
@@ -355,6 +354,8 @@ export class AuthService {
           return;
         }
 
+        // JIT provisioning from SSO takes a licence seat (403 LICENSE_SEAT_LIMIT when none is left).
+        await assertSeatAvailable({ email, transaction });
         const created = await this.authRepository.createUser({
           full_name: fullName,
           email,
@@ -476,6 +477,9 @@ export class AuthService {
         ...safePayload
       } = payload as any;
 
+      // Self-registration creates an account; refused when the licence has no seat left.
+      await assertSeatAvailable({ email: payload.email, transaction });
+
       let userModel;
       try {
         userModel = await this.authRepository.createUser(
@@ -546,11 +550,12 @@ export class AuthService {
       const otpExpiresAt = new Date(Date.now() + REGISTRATION_OTP_TTL_MS).toISOString();
 
       try {
-        await enqueueJob(QUEUE_NAMES.EMAIL_NOTIFICATION, "SendVerification", {
-          guestId: userModel.id,
-          otp,
-          template: "REGISTRATION_VERIFICATION",
-        }, transaction);
+        await enqueueJob(
+          QUEUE_NAMES.EMAIL_NOTIFICATION,
+          "SendVerification",
+          otpEmailJobPayload(userModel.id, otp, "REGISTRATION_VERIFICATION"),
+          transaction,
+        );
       } catch {}
 
       return { ...(hydratedUser ?? userModel), otpExpiresAt };
@@ -615,6 +620,11 @@ export class AuthService {
       }
     }
 
+    // Verification flips the account to ACTIVE, which takes a licence seat.
+    if (String(user.status) !== "ACTIVE") {
+      await assertSeatAvailable({ email: user.email });
+    }
+
     // Mark as verified
     await this.authRepository.verifyUserEmail(user.id);
 
@@ -650,11 +660,7 @@ export class AuthService {
     await this.authRepository.updateUserOtp(user.id, otp);
 
     try {
-      await enqueueJob(QUEUE_NAMES.EMAIL_NOTIFICATION, "SendVerification", {
-        guestId: user.id,
-        otp,
-        template: "REGISTRATION_VERIFICATION",
-      });
+      await enqueueJob(QUEUE_NAMES.EMAIL_NOTIFICATION, "SendVerification", otpEmailJobPayload(user.id, otp, "REGISTRATION_VERIFICATION"));
     } catch {}
 
     return { email, otpExpiresAt };
@@ -728,11 +734,7 @@ export class AuthService {
     const otpExpiresAt = new Date(Date.now() + REGISTRATION_OTP_TTL_MS).toISOString();
 
     try {
-      await enqueueJob(QUEUE_NAMES.EMAIL_NOTIFICATION, "SendVerification", {
-        guestId: user.id,
-        otp,
-        template: "REGISTRATION_VERIFICATION",
-      });
+      await enqueueJob(QUEUE_NAMES.EMAIL_NOTIFICATION, "SendVerification", otpEmailJobPayload(user.id, otp, "REGISTRATION_VERIFICATION"));
     } catch {}
 
     return { email: newEmail, otpExpiresAt };
@@ -998,11 +1000,7 @@ export class AuthService {
       reset_password_otp_attempts: 0
     });
 
-    await enqueueJob(QUEUE_NAMES.EMAIL_NOTIFICATION, "SendVerification", {
-      guestId: userModel.id,
-      otp,
-      template: "PASSWORD_RESET",
-    });
+    await enqueueJob(QUEUE_NAMES.EMAIL_NOTIFICATION, "SendVerification", otpEmailJobPayload(userModel.id, otp, "PASSWORD_RESET"));
   }
 
   public async resetPassword(email: string, otp: unknown, newPassword: string) {
@@ -1050,6 +1048,7 @@ export class AuthService {
     // (session-revocation fails closed there) -- reporting success while every
     // pre-reset token still works would be a lie.
     await revokeUserSessions(user.id);
+    await logAudit(user.id, "PASSWORD_RESET", "User", user.id, null, { method: "EMAIL_CODE" });
   }
 
   public async changePassword(userId: number, oldPass: string, newPass: string) {

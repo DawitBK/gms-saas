@@ -19,6 +19,8 @@ import simulationRoutes from './simulation.routes';
 import { metricsRegistry } from '../../shared/services/metrics.service';
 import { appConfig } from '../../config/app.config';
 import internalSsoRoutes from '../../modules/auth/internal-sso.routes';
+import licenseRoutes from '../../modules/license/license.routes';
+import { licenseGuard } from '../../modules/license/license.guard';
 
 const router = Router();
 
@@ -48,7 +50,16 @@ router.get('/metrics', async (_req, res) => {
   res.send(await metricsRegistry.metrics());
 });
 
+/**
+ * Platform licence gate (docs/operations/PLATFORM-LICENSING.md): module gate + read-only guard.
+ * Registered after /health and /metrics (safe GETs) and before every route group; it never blocks in
+ * state unconfigured/unknown. The allowlist and the route-group -> module map live in
+ * modules/license/license.routing.ts.
+ */
+router.use(licenseGuard);
+
 router.use('/auth', authRoutes);
+router.use('/license', licenseRoutes);
 router.use('/internal/sso', internalSsoRoutes);
 router.use('/users', userRoutes);
 router.use('/visits', visitRoutes);

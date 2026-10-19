@@ -15,6 +15,7 @@ jest.mock("../modules/auth/sso-roles-client", () => ({
 
 import { Host, User } from "../infrastructure/database/models";
 import { UserService } from "../modules/users/user.service";
+import * as auditService from "../shared/services/audit.service";
 
 describe("UserService provisioning", () => {
   afterEach(() => {
@@ -189,5 +190,152 @@ describe("UserService provisioning", () => {
         office_id: 3,
       }),
     ).rejects.toThrow("That user is outside your office scope");
+  });
+
+  describe("audit trail", () => {
+    const txn = { id: "test-transaction" };
+
+    it("writes USER_CREATE inside the transaction and never records the password", async () => {
+      const logAuditSpy = jest
+        .spyOn(auditService, "logAudit")
+        .mockResolvedValue(undefined as any);
+      const service = new UserService();
+      (service as any).authRepository = {
+        findUserByEmail: jest.fn(async () => null),
+        findUserByPhone: jest.fn(async () => null),
+        createUser: jest.fn(async () => ({ id: 91 })),
+        assignRoles: jest.fn(async () => undefined),
+      };
+      (service as any).repository = {
+        findById: jest.fn(async () => ({
+          id: 91,
+          full_name: "Reception User",
+          email: "reception.user@gms.local",
+          phone: null,
+          office_id: null,
+          status: "ACTIVE",
+          roles: [{ name: "reception" }],
+        })),
+        findDepartmentById: jest.fn(async () => null),
+      };
+
+      await service.createUser(
+        { id: 1, roles: ["super_admin"] },
+        {
+          full_name: "Reception User",
+          email: "reception.user@gms.local",
+          password: "Sup3rSecret!Pw",
+          roles: ["reception"],
+        },
+      );
+
+      expect(logAuditSpy).toHaveBeenCalledTimes(1);
+      const [actorId, action, entity, entityId, before, after, transaction] =
+        logAuditSpy.mock.calls[0];
+      expect([actorId, action, entity, entityId, before]).toEqual([
+        1,
+        "USER_CREATE",
+        "User",
+        91,
+        null,
+      ]);
+      expect(after).toMatchObject({
+        email: "reception.user@gms.local",
+        roles: ["reception"],
+      });
+      expect(transaction).toEqual(txn);
+      expect(JSON.stringify(logAuditSpy.mock.calls)).not.toMatch(
+        /Sup3rSecret|password|hash/i,
+      );
+    });
+
+    it("writes USER_ROLES_CHANGE with before and after roles when roles are set", async () => {
+      const logAuditSpy = jest
+        .spyOn(auditService, "logAudit")
+        .mockResolvedValue(undefined as any);
+      const service = new UserService();
+      jest
+        .spyOn(service as any, "upsertHostRecord")
+        .mockResolvedValue({ id: 33 });
+      (service as any).authRepository = {
+        assignRoles: jest.fn(async () => undefined),
+      };
+      const findById = jest.fn();
+      findById.mockImplementationOnce(async () => ({
+        id: 44,
+        email: "upgrade@gms.local",
+        office_id: null,
+        roles: [{ name: "admin" }],
+      }));
+      findById.mockImplementationOnce(async () => ({
+        id: 44,
+        email: "upgrade@gms.local",
+        office_id: null,
+        roles: [{ name: "host" }],
+      }));
+      (service as any).repository = { findById };
+
+      await service.setUserRoles(44, ["host"], { id: 1, roles: ["super_admin"] });
+
+      expect(logAuditSpy).toHaveBeenCalledWith(
+        1,
+        "USER_ROLES_CHANGE",
+        "User",
+        44,
+        { roles: ["admin"] },
+        { roles: ["host"] },
+        txn as any,
+      );
+    });
+
+    it("updateUser audits changed fields and an admin-set password without leaking it", async () => {
+      const logAuditSpy = jest
+        .spyOn(auditService, "logAudit")
+        .mockResolvedValue(undefined as any);
+      const service = new UserService();
+      (service as any).authRepository = {
+        findUserByEmail: jest.fn(async () => null),
+        assignRoles: jest.fn(async () => undefined),
+      };
+      const findById = jest.fn();
+      findById.mockImplementationOnce(async () => ({
+        id: 7,
+        full_name: "Old Name",
+        email: "u7@gms.local",
+        phone: null,
+        office_id: 2,
+        status: "ACTIVE",
+        roles: [{ name: "reception" }],
+      }));
+      findById.mockImplementationOnce(async () => ({
+        id: 7,
+        full_name: "New Name",
+        email: "u7@gms.local",
+        phone: null,
+        office_id: 2,
+        status: "ACTIVE",
+        roles: [{ name: "reception" }],
+      }));
+      (service as any).repository = {
+        findById,
+        update: jest.fn(async () => undefined),
+      };
+
+      await service.updateUser(7, { id: 1, roles: ["super_admin"] }, {
+        full_name: "New Name",
+        password: "An0therSecret!",
+      });
+
+      const actions = logAuditSpy.mock.calls.map((c) => c[1]);
+      expect(actions).toEqual(["USER_UPDATE", "USER_PASSWORD_SET_BY_ADMIN"]);
+      expect(logAuditSpy.mock.calls[0][4]).toEqual({ full_name: "Old Name" });
+      expect(logAuditSpy.mock.calls[0][5]).toEqual({ full_name: "New Name" });
+      expect(
+        logAuditSpy.mock.calls.every((c) => (c[6] as any)?.id === "test-transaction"),
+      ).toBe(true);
+      expect(JSON.stringify(logAuditSpy.mock.calls)).not.toMatch(
+        /An0therSecret|$2[aby]$/,
+      );
+    });
   });
 });

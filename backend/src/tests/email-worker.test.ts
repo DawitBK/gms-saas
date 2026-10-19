@@ -3,6 +3,7 @@ import { processEmailJobData } from '../infrastructure/queue/workers/email.worke
 import { AccessCredential, User, Visit } from '../infrastructure/database/models';
 import { EmailService } from '../infrastructure/email/email.service';
 import { appConfig } from '../config/app.config';
+import { otpEmailJobPayload } from '../shared/utils/otp';
 
 describe('Email worker templates', () => {
   const originalClientUrl = appConfig.clientUrl;
@@ -113,5 +114,56 @@ describe('Email worker templates', () => {
     html: expect.not.stringContaining('http://localhost:7201/scan/visit?qr=550e8400-e29b-41d4-a716-446655440111'),
       })
     );
+  });
+
+  describe('one-time-code emails (code arrives sealed)', () => {
+    const guest = { full_name: 'Jane Doe', email: 'jane@example.com' };
+
+    it.each([
+      ['REGISTRATION_VERIFICATION', 'Verify your GMS account', 'Verification Required'],
+      ['PASSWORD_RESET', 'Reset your GMS password', 'Password reset'],
+      ['TWO_FACTOR_AUTH', 'GMS Two-Factor Authentication Code', 'Your Verification Code'],
+    ] as const)('sends the %s email with the opened code', async (template, subject, heading) => {
+      jest.spyOn(User, 'findByPk').mockResolvedValue(guest as any);
+      const sendSpy = jest.spyOn(EmailService.prototype, 'send').mockResolvedValue(undefined);
+
+      await processEmailJobData('SendVerification', otpEmailJobPayload(8, '482913', template) as any);
+
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+      const sent = sendSpy.mock.calls[0][0];
+      expect(sent.to).toBe('jane@example.com');
+      expect(sent.subject).toBe(subject);
+      expect(String(sent.html)).toContain(heading);
+      expect(String(sent.html)).toContain('482913');
+    });
+
+    it('still sends a legacy job that carries the code in plaintext (queued before the change)', async () => {
+      jest.spyOn(User, 'findByPk').mockResolvedValue(guest as any);
+      const sendSpy = jest.spyOn(EmailService.prototype, 'send').mockResolvedValue(undefined);
+
+      await processEmailJobData('SendVerification', { guestId: 8, otp: '482913', template: 'PASSWORD_RESET' });
+
+      expect(String(sendSpy.mock.calls[0][0].html)).toContain('482913');
+    });
+
+    it('sends nothing, and does not throw, when the code has been redacted', async () => {
+      jest.spyOn(User, 'findByPk').mockResolvedValue(guest as any);
+      const sendSpy = jest.spyOn(EmailService.prototype, 'send').mockResolvedValue(undefined);
+
+      await expect(
+        processEmailJobData('SendVerification', { guestId: 8, template: 'PASSWORD_RESET', otp_redacted: true } as any),
+      ).resolves.toBeUndefined();
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
+
+    it('refuses a code sealed for another account', async () => {
+      jest.spyOn(User, 'findByPk').mockResolvedValue(guest as any);
+      const sendSpy = jest.spyOn(EmailService.prototype, 'send').mockResolvedValue(undefined);
+      const payload = otpEmailJobPayload(8, '482913', 'PASSWORD_RESET');
+
+      await processEmailJobData('SendVerification', { ...payload, guestId: 9 } as any);
+
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
   });
 });

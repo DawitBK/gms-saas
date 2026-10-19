@@ -2,7 +2,8 @@ import { VisitService } from '../visits/visit.service';
 import { AppError } from '../../core/errors/AppError';
 import { ErrorCodes } from '../../core/errors/errorCodes';
 import { QUEUE_NAMES } from '../../infrastructure/queue/queue';
-import { Visit } from '../../infrastructure/database/models';
+import { AuditLog, Visit } from '../../infrastructure/database/models';
+import { logAudit } from '../../shared/services/audit.service';
 import { GuestService } from '../guests/guest.service';
 import { CredentialRepository } from '../credentials/credential.repository';
 import { enqueueJob } from '../../infrastructure/events/outbox.service';
@@ -48,6 +49,47 @@ export class CheckinService {
         ErrorCodes.AUTH_FORBIDDEN,
         403
       );
+    }
+  }
+
+  /**
+   * Security reconciliation for a manual (staff-forced) admission: if the
+   * door controller never recorded a physical UNIFI_ACCESS_GRANTED for this
+   * visit, write a SECURITY_POLICY_EXCEPTION audit row so reception/security
+   * can reconcile it later.
+   *
+   * History: this used to `require()` `AuditLog` out of audit.service, which
+   * does not export it, and filter on a non-existent `entity_type` column
+   * (the column is `entity`) -- so the lookup threw (or could never match)
+   * and the exception row was never written. If the lookup itself fails we
+   * fail toward recording the exception: an extra row is reconcilable, a
+   * silently missing one is not.
+   */
+  private async recordManualOverrideException(
+    visitId: number,
+    actor: { id: number },
+    notes: string,
+  ) {
+    let physicalEntry: unknown = null;
+    try {
+      physicalEntry = await AuditLog.findOne({
+        where: {
+          entity: 'Visit',
+          entity_id: String(visitId),
+          action: 'UNIFI_ACCESS_GRANTED',
+        },
+      });
+    } catch {
+      physicalEntry = null;
+    }
+
+    if (!physicalEntry) {
+      await logAudit(actor.id, 'SECURITY_POLICY_EXCEPTION', 'Visit', visitId, null, {
+        issue: 'Manual check-in performed without a corresponding physical UniFi access grant.',
+        severity: 'MEDIUM',
+        reconciliation_required: true,
+        notes,
+      });
     }
   }
 
@@ -137,7 +179,11 @@ export class CheckinService {
     // transition.
     if (changed) {
       // Audit the check-in specifics
-      const { logAudit } = require('../../shared/services/audit.service');
+      await this.recordManualOverrideException(
+        visit.id,
+        actor,
+        'Admitted via QR scan screen with manual override.',
+      );
       await logAudit(actor.id, 'CHECKIN_PERFORMED', 'Visit', visit.id, null, {
         method: options.manual_override ? 'MANUAL_OVERRIDE' : 'QR_SCAN',
         identity_verification: options.verification_metadata ?? null,
@@ -201,26 +247,14 @@ export class CheckinService {
     // email. Only run these once, on the call that actually performed the
     // transition.
     if (changed) {
+      // Security Reconciliation: was the guest also admitted physically?
+      await this.recordManualOverrideException(
+        visit.id,
+        actor,
+        metadata?.notes || 'Admitted via dashboard override.',
+      );
+
       // Audit the manual override specifics
-      const { logAudit, AuditLog } = require('../../shared/services/audit.service');
-
-      // Security Reconciliation: Check if the guest actually scanned in physically
-      const physicalEntry = await (AuditLog as any).findOne({
-        where: {
-          entity_type: 'Visit',
-          entity_id: visit.id,
-          action: 'UNIFI_ACCESS_GRANTED'
-        }
-      });
-
-      if (!physicalEntry) {
-        await logAudit(actor.id, 'SECURITY_POLICY_EXCEPTION', 'Visit', visit.id, null, {
-          issue: 'Manual check-in performed without a corresponding physical UniFi access grant.',
-          severity: 'MEDIUM',
-          reconciliation_required: true,
-          notes: metadata?.notes || 'Admitted via dashboard override.'
-        });
-      }
 
       await logAudit(actor.id, 'CHECKIN_MANUAL_OVERRIDE', 'Visit', visit.id, null, {
         method: 'MANUAL_OVERRIDE_DASHBOARD',

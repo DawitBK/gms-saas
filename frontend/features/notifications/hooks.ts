@@ -3,12 +3,14 @@ import { notificationsApi } from './api';
 import { useRoleContext } from '@shared/hooks/useRoleContext';
 import { QC } from '@shared/lib/query-config';
 
-export const useNotifications = () => {
+export const useNotifications = (options?: { enabled?: boolean }) => {
   const { scopeKey } = useRoleContext();
 
   return useQuery({
     queryKey: ['notifications', scopeKey],
     queryFn: () => notificationsApi.list(),
+    // false when the licence does not include the notifications module (the endpoint would answer 403 every poll).
+    enabled: options?.enabled ?? true,
     ...QC.NOTIFICATIONS,
   });
 };

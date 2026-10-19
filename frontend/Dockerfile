@@ -11,6 +11,10 @@ ENV NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
 
+# package.json depends on "xlsx": "file:../vendor/xlsx-0.20.3.tgz"; from /app that is /vendor/. The directory is outside the
+# ./frontend build context, so it comes in as the named build context `vendor` (compose: additional_contexts;
+# CLI: --build-context vendor=./vendor), exactly as for the backend image.
+COPY --from=vendor xlsx-0.20.3.tgz /vendor/xlsx-0.20.3.tgz
 COPY package*.json ./
 RUN npm ci
 

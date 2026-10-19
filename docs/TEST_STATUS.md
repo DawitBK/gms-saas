@@ -5,7 +5,7 @@
 | Metric | Result |
 |---|---|
 | Product | GMS |
-| Test suites | 44 passed / 44 total |
-| Tests | 182 passed / 182 total |
+| Test suites | 54 passed / 54 total |
+| Tests | 366 passed / 366 total |
 | Failed | 0 |
 | Status | PASS |

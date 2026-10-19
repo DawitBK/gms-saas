@@ -56,6 +56,7 @@ import {
 import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 import { hashUnusablePassword } from "../../shared/auth/provisioning";
+import { assertSeatAvailable } from "../license/license.seats";
 import { revokeUserSessions } from "../../shared/services/session-revocation.service";
 
 /**
@@ -1475,6 +1476,7 @@ export class OperationsService {
               // accounts now requires the emailed reset OTP, SSO, or an admin
               // deliberately setting a password.
               const passwordHash = await hashUnusablePassword();
+              if (isActive) await assertSeatAvailable({ email, transaction: t });
               user = await User.create(
                 {
                   full_name: fullName,
@@ -1487,6 +1489,9 @@ export class OperationsService {
                 { transaction: t },
               );
             } else {
+              if (isActive && String(user.status) !== "ACTIVE") {
+                await assertSeatAvailable({ email, transaction: t });
+              }
               await user.update(
                 {
                   full_name: fullName,

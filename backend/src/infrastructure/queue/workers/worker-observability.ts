@@ -2,6 +2,7 @@ import { Job } from 'bullmq';
 import { captureException } from '../../../shared/services/sentry.service';
 import { jobDurationSeconds, jobFailuresCounter } from '../../../shared/services/metrics.service';
 import { enqueueDeadLetter } from '../queue';
+import { redactOtpFields } from '../../../shared/utils/otp';
 
 export const trackJob = async <T>(queueName: string, job: Job, handler: () => Promise<T>) => {
   const started = process.hrtime.bigint();
@@ -40,7 +41,8 @@ export const trackJob = async <T>(queueName: string, job: Job, handler: () => Pr
         jobId: job.id,
         queueName,
         jobName: job.name,
-        data: job.data,
+        // The dead-letter queue keeps its entries forever: never copy a one-time code into it.
+        data: redactOtpFields(job.data),
         attempts: job.attemptsMade,
         failedReason: error instanceof Error ? error.message : 'Unknown error',
         failedAt: new Date().toISOString(),

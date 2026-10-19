@@ -39,6 +39,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      additional_contexts:
+        vendor: ./vendor
     container_name: gms-backend-api
     init: true
     restart: always
@@ -71,6 +73,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      additional_contexts:
+        vendor: ./vendor
     container_name: gms-backend-worker
     init: true
     restart: always
@@ -100,6 +104,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      additional_contexts:
+        vendor: ./vendor
       args:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:7200/api/v1}
         NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-http://localhost:7200}

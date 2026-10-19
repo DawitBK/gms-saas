@@ -5,6 +5,7 @@ import { resolveApiBaseUrl } from '@shared/lib/api-base-url';
 import { buildLoginRedirectPath, getCurrentAppPath } from '@shared/lib/auth-redirect';
 import { useAuthStore } from '@state/auth.store';
 import { toast } from 'sonner';
+import { LICENSE_ERROR_MESSAGES, isLicenseErrorCode } from '@shared/lib/license';
 
 export const apiClient = axios.create({
   baseURL: resolveApiBaseUrl(),
@@ -192,6 +193,15 @@ apiClient.interceptors.response.use(
       toast.error('System is currently undergoing maintenance. Please try again later.', {
         id: 'maintenance-error',
       });
+    } else if (isLicenseErrorCode(errorCode)) {
+      // Licence refusals (403): say plainly what happened instead of a bare "Forbidden", and let any
+      // screen that shows error.message read the same words. A disabled module is only announced for
+      // an action (a background GET poll for a hidden module must stay silent).
+      error.message = LICENSE_ERROR_MESSAGES[errorCode];
+      const method = String(error?.config?.method ?? 'get').toLowerCase();
+      if (errorCode !== 'LICENSE_MODULE_DISABLED' || method !== 'get') {
+        toast.error(LICENSE_ERROR_MESSAGES[errorCode], { id: `license-${errorCode}` });
+      }
     }
 
     const status = error?.response?.status;

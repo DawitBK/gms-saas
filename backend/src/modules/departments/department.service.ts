@@ -176,6 +176,17 @@ export class DepartmentService {
         ErrorCodes.SYSTEM_NOT_FOUND,
         404,
       );
+    await logAudit(
+      actor?.id || null,
+      "DEPARTMENT_ARCHIVE",
+      "Department",
+      id,
+      {
+        name: (dept as any).name,
+        office_id: (dept as any).office_id ?? null,
+      },
+      { archived: true },
+    );
     await CacheService.delPattern("gms:depts:*");
     return { deleted: true };
   }
@@ -197,6 +208,18 @@ export class DepartmentService {
         ErrorCodes.SYSTEM_NOT_FOUND,
         404,
       );
+    await logAudit(
+      actor?.id || null,
+      "DEPARTMENT_RESTORE",
+      "Department",
+      id,
+      { archived: true },
+      {
+        name: (dept as any).name,
+        office_id: (dept as any).office_id ?? null,
+        archived: false,
+      },
+    );
     await CacheService.delPattern("gms:depts:*");
     return { restored: true };
   }

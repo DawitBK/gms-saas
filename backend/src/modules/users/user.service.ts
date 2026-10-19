@@ -27,8 +27,10 @@ import {
   ServiceHost,
 } from "../../infrastructure/database/models";
 import { hashUnusablePassword } from "../../shared/auth/provisioning";
+import { assertSeatAvailable } from "../license/license.seats";
 import { revokeUserSessions } from "../../shared/services/session-revocation.service";
 import { setSsoGrantedRoles } from "../auth/sso-roles-client";
+import { logAudit } from "../../shared/services/audit.service";
 
 type UserActor = { id: number; roles?: string[]; office_id?: number };
 
@@ -76,6 +78,32 @@ function assertActorMayAssignRoles(
       403,
     );
   }
+}
+
+/**
+ * What an audit row may say about an account. Deliberately an allowlist, not
+ * the whole DTO or model: no password, password hash, one-time code, token or
+ * government id ever reaches audit_logs.metadata.
+ */
+function userAuditSnapshot(dto: ReturnType<typeof mapUserToDTO>) {
+  return {
+    full_name: dto.full_name,
+    email: dto.email,
+    phone: dto.phone ?? null,
+    office_id: dto.office_id ?? null,
+    department_id: dto.department_id ?? null,
+    status: dto.status,
+    roles: [...dto.roles],
+  };
+}
+
+function pickFields<T extends Record<string, unknown>>(
+  source: T,
+  keys: (keyof T)[],
+): Partial<T> {
+  const out: Partial<T> = {};
+  for (const key of keys) out[key] = source[key];
+  return out;
 }
 
 export class UserService {
@@ -168,6 +196,10 @@ export class UserService {
       throw new AppError("User not found", ErrorCodes.SYSTEM_NOT_FOUND, 404);
     }
     this.assertActorCanAccessUser(actor, mapUserToDTO(user));
+    // Restoring an ACTIVE account takes a licence seat back (platform administrator exempt).
+    if (String((user as any).status) === "ACTIVE") {
+      await assertSeatAvailable({ email: (user as any).email });
+    }
     await this.repository.restore(id);
     return true;
   }
@@ -205,6 +237,8 @@ export class UserService {
     }
     this.assertActorCanAccessUser(actor, mapUserToDTO(user));
 
+    const beforeSnapshot = userAuditSnapshot(mapUserToDTO(user));
+
     const result = await withTransaction(async (transaction) => {
       const updatePayload: Record<string, string | null | number> = {};
 
@@ -241,6 +275,15 @@ export class UserService {
         updatePayload.status = payload.status;
       } else if (typeof payload.active === "boolean") {
         updatePayload.status = payload.active ? "ACTIVE" : "INACTIVE";
+      }
+
+      // Activating an account that is not ACTIVE takes a licence seat (an already-active account
+      // being edited, or a deactivation, never does).
+      if (
+        updatePayload.status === "ACTIVE" &&
+        String((user as any).status) !== "ACTIVE"
+      ) {
+        await assertSeatAvailable({ email: (user as any).email, transaction });
       }
 
       const scopedOfficeId = this.getActorManagedOfficeId(actor);
@@ -365,7 +408,53 @@ export class UserService {
       if (!updated) {
         throw new AppError("User not found", ErrorCodes.SYSTEM_NOT_FOUND, 404);
       }
-      return mapUserToDTO(updated);
+      const updatedDto = mapUserToDTO(updated);
+      const afterSnapshot = userAuditSnapshot(updatedDto);
+
+      // Same transaction as the change itself (logAudit rethrows when given
+      // one, so a failed audit insert rolls the whole edit back).
+      const changedFields = (
+        Object.keys(afterSnapshot) as (keyof typeof afterSnapshot)[]
+      ).filter(
+        (key) =>
+          JSON.stringify(afterSnapshot[key]) !==
+          JSON.stringify(beforeSnapshot[key]),
+      );
+      if (changedFields.length > 0) {
+        await logAudit(
+          actor?.id ?? null,
+          "USER_UPDATE",
+          "User",
+          id,
+          pickFields(beforeSnapshot, changedFields),
+          pickFields(afterSnapshot, changedFields),
+          transaction,
+        );
+      }
+      if (payload.roles) {
+        await logAudit(
+          actor?.id ?? null,
+          "USER_ROLES_CHANGE",
+          "User",
+          id,
+          { roles: beforeSnapshot.roles },
+          { roles: afterSnapshot.roles },
+          transaction,
+        );
+      }
+      if (updatePayload.password_hash) {
+        // Only the fact of the change. Never the password or its hash.
+        await logAudit(
+          actor?.id ?? null,
+          "USER_PASSWORD_SET_BY_ADMIN",
+          "User",
+          id,
+          null,
+          { set_by: actor?.id ?? null },
+          transaction,
+        );
+      }
+      return updatedDto;
     });
 
     // FIX: deactivating a user or changing their roles used to have zero
@@ -452,6 +541,7 @@ export class UserService {
       );
     }
 
+    const rolesBefore = mapUserToDTO(targetUser).roles;
     const updated = await withTransaction(async (transaction) => {
       await this.authRepository.assignRoles(id, normalizedRoles, transaction);
       if (normalizedRoles.some((role) => isHostRole(role))) {
@@ -464,7 +554,17 @@ export class UserService {
           transaction,
         );
       }
-      return this.repository.findById(id, transaction);
+      const reloaded = await this.repository.findById(id, transaction);
+      await logAudit(
+        actor.id,
+        "USER_ROLES_CHANGE",
+        "User",
+        id,
+        { roles: rolesBefore },
+        { roles: reloaded ? mapUserToDTO(reloaded).roles : normalizedRoles },
+        transaction,
+      );
+      return reloaded;
     });
     if (!updated)
       throw new AppError("User not found", ErrorCodes.SYSTEM_NOT_FOUND, 404);
@@ -556,7 +656,10 @@ export class UserService {
 
       const password_hash = await bcrypt.hash(payload.password, 12);
 
-      // 3. Database user creation
+      // 3. Database user creation (a new ACTIVE account takes a licence seat)
+      if (payload.active !== false) {
+        await assertSeatAvailable({ email: normalizedEmail, transaction });
+      }
       let user;
       try {
         user = await this.authRepository.createUser(
@@ -643,7 +746,18 @@ export class UserService {
         );
       }
 
-      return mapUserToDTO(hydrated);
+      const createdDto = mapUserToDTO(hydrated);
+      await logAudit(
+        actor.id,
+        "USER_CREATE",
+        "User",
+        user.id,
+        null,
+        userAuditSnapshot(createdDto),
+        transaction,
+      );
+
+      return createdDto;
     });
   }
 
@@ -956,6 +1070,7 @@ export class UserService {
             // on an ACTIVE account, at a weaker cost than the rest of the
             // system. requires_password_change below never gated anything.
             const defaultPasswordHash = await hashUnusablePassword();
+            await assertSeatAvailable({ email, transaction });
             user = await this.authRepository.createUser(
               {
                 full_name: fullName,
@@ -1022,6 +1137,8 @@ export class UserService {
 
           results.push({ success: true, email });
         } catch (err: any) {
+          // The seat limit keeps its own code and status (403 LICENSE_SEAT_LIMIT) so the screen can say why.
+          if (err instanceof AppError && err.code === ErrorCodes.LICENSE_SEAT_LIMIT) throw err;
           // Since we are in a transaction, one failure rolls back everything.
           // We throw to trigger the withTransaction rollback.
           throw new Error(
@@ -1029,6 +1146,15 @@ export class UserService {
           );
         }
       }
+      await logAudit(
+        actor.id,
+        "USER_BULK_IMPORT",
+        "User",
+        "bulk",
+        null,
+        { count: results.length, emails: results.map((r: any) => r.email) },
+        transaction,
+      );
       return results;
     });
   }

@@ -14,6 +14,7 @@ import { captureException, initializeSentry } from './shared/services/sentry.ser
 import { validateSendGridFromEmail } from './shared/services/sendgrid.service';
 import { UniFiAccessPollerService } from './modules/unifi-webhooks/unifi-access-poller.service';
 import { DetectStaleVisitsInteractor } from './modules/visits/use-cases/DetectStaleVisitsInteractor';
+import { licenseStore } from './modules/license/license.store';
 import './modules/auth/auth.events';
 import './modules/visits/visit.events';
 
@@ -108,6 +109,9 @@ const startServer = async () => {
       );
     });
 
+    // 5a. Platform licence poller: loads the cached token, polls SSO in the background. Never blocks or throws.
+    licenseStore.start();
+
     // 5. Initialize background resilient handlers (Cron, Outbox, Intelligence)
     const outboxInterval = appConfig.background.outboxPollingEnabled
       ? setInterval(() => {
@@ -146,6 +150,7 @@ const startServer = async () => {
       
       if (outboxInterval) clearInterval(outboxInterval);
       if (staleVisitInterval) clearInterval(staleVisitInterval);
+      licenseStore.stop();
       
       // 1. Stop External Pollers
       if (unifiAccessPoller) {

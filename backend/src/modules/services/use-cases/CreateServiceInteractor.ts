@@ -2,6 +2,7 @@ import { ServiceRepository } from '../service.repository';
 import { resolveScopedOfficeId } from '../../../shared/auth/scope-resolver';
 import { AppError } from '../../../core/errors/AppError';
 import { ErrorCodes } from '../../../core/errors/errorCodes';
+import { logAudit } from '../../../shared/services/audit.service';
 
 export type ServiceActor = { id: number; roles?: string[]; office_id?: number };
 
@@ -22,10 +23,14 @@ export class CreateServiceInteractor {
     const effectiveOfficeId = this.resolveWriteOfficeId(actor, data.office_id);
     
     // The repository already has associations loaded in the create response
-    return await this.repository.create({ 
-      ...data, 
-      office_id: effectiveOfficeId 
-    });
+    const payload = { ...data, office_id: effectiveOfficeId };
+    const service = await this.repository.create(payload);
+
+    // The repository owns its own transaction, so this is a best-effort
+    // after-the-fact row (same as every other non-transactional call site).
+    await logAudit(actor?.id ?? null, 'SERVICE_CREATE', 'Service', (service as any).id, null, payload);
+
+    return service;
   }
 
   private resolveWriteOfficeId(actor: ServiceActor | undefined, officeId?: number) {

@@ -2,6 +2,7 @@ import { ServiceRepository } from '../service.repository';
 import { resolveScopedOfficeId } from '../../../shared/auth/scope-resolver';
 import { AppError } from '../../../core/errors/AppError';
 import { ErrorCodes } from '../../../core/errors/errorCodes';
+import { logAudit } from '../../../shared/services/audit.service';
 
 export type ServiceActor = { id: number; roles?: string[]; office_id?: number };
 
@@ -29,10 +30,13 @@ export class UpdateServiceInteractor {
     // Determine the office_id for the updated record (scoped admins can't move services out of their office)
     const effectiveOfficeId = this.resolveWriteOfficeId(actor, data.office_id ?? (existing as any).office_id);
 
-    const service = await this.repository.update(id, { ...data, office_id: effectiveOfficeId });
+    const payload = { ...data, office_id: effectiveOfficeId };
+    const service = await this.repository.update(id, payload);
     if (!service) {
       throw new AppError('Service update failed', ErrorCodes.SYSTEM_DATABASE_ERROR, 500);
     }
+
+    await logAudit(actor?.id ?? null, 'SERVICE_UPDATE', 'Service', id, null, payload);
 
     return service;
   }

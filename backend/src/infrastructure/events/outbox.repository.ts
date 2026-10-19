@@ -1,6 +1,7 @@
-import { Op, Transaction, where, col } from 'sequelize';
+import { Op, Transaction, where, col, literal } from 'sequelize';
 import { sequelize } from '../database/sequelize';
 import { OutboxEvent } from '../database/models';
+import { OTP_PAYLOAD_KEYS } from '../../shared/utils/otp';
 
 const DEFAULT_BATCH_SIZE = 25;
 
@@ -11,6 +12,20 @@ const DEFAULT_BATCH_SIZE = 25;
 // `available_at`, which is roughly the row's original due time and would
 // reclaim a merely-slow-but-still-running row out from under itself.
 const STALE_PROCESSING_MS = 5 * 60 * 1000;
+
+/**
+ * SQL that removes one-time codes from `outbox_events.payload` and leaves an
+ * `otp_redacted: true` marker. Applied when a row reaches a terminal state
+ * (PROCESSED or DEAD_LETTER), so a code is never retained once nothing can send
+ * it any more. Idempotent: a payload without the keys is returned unchanged,
+ * and the marker is only added when a key was actually removed. Also used by
+ * scripts/redact-outbox-otps.ts for rows stored before this existed.
+ */
+const otpKeyList = OTP_PAYLOAD_KEYS.map((k) => `'${k}'`);
+export const REDACT_OTP_PAYLOAD_SQL =
+  `CASE WHEN jsonb_exists_any(payload, ARRAY[${otpKeyList.join(',')}]) ` +
+  `THEN (payload${otpKeyList.map((k) => ` - ${k}`).join('')}) || '{"otp_redacted": true}'::jsonb ` +
+  `ELSE payload END`;
 
 export const createOutboxRecord = async (data: Record<string, unknown>, transaction?: Transaction) => {
   return OutboxEvent.create(data as any, { transaction });
@@ -27,6 +42,7 @@ export const claimPendingOutbox = async (limit = DEFAULT_BATCH_SIZE) => {
         status: 'DEAD_LETTER',
         locked_at: null,
         error_message: 'Reclaimed from stale PROCESSING after exhausting retries (likely crashed mid-attempt)',
+        payload: literal(REDACT_OTP_PAYLOAD_SQL),
       },
       {
         where: {
@@ -74,6 +90,8 @@ export const markOutboxProcessed = async (id: number) => {
       processed_at: new Date(),
       locked_at: null,
       error_message: null,
+      // Dispatched: nothing needs the one-time code in this row any more.
+      payload: literal(REDACT_OTP_PAYLOAD_SQL),
     },
     { where: { id } }
   );
@@ -94,6 +112,9 @@ export const markOutboxFailed = async (id: number, attemptCount: number, errorMe
       locked_at: null,
       error_message: errorMessage,
       available_at: new Date(Date.now() + delaySeconds * 1000),
+      // A retry (FAILED) still needs the sealed code; a permanent failure
+      // (DEAD_LETTER) must not keep one.
+      ...(nextStatus === 'DEAD_LETTER' ? { payload: literal(REDACT_OTP_PAYLOAD_SQL) } : {}),
     },
     { where: { id } }
   );

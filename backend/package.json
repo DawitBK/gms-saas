@@ -10,6 +10,8 @@
     "start:mirror": "node --max-old-space-size=4096 scripts/run-with-env-mirror.js dist/main.js",
     "outbox:worker": "node --max-old-space-size=4096 scripts/run-with-env.js production dist/bin/outbox.worker.js",
     "outbox:worker:mirror": "node --max-old-space-size=4096 scripts/run-with-env-mirror.js dist/bin/outbox.worker.js",
+    "outbox:redact-otps": "node scripts/run-with-env.js development scripts/redact-outbox-otps.ts",
+    "outbox:redact-otps:prod": "node scripts/run-with-env.js production scripts/redact-outbox-otps.ts",
     "outbox:worker:dev": "nodemon --watch src --ext ts,js,json --exec node scripts/run-with-env.js development src/bin/outbox.worker.ts",
     "test": "jest --config jest.config.js --no-cache --json --outputFile=test-results.json",
     "test:openapi-coverage": "node scripts/validate-openapi-coverage.js",

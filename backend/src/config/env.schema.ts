@@ -108,6 +108,36 @@ export const envSchema = z.object({
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().default('mailto:systems@examplecorp.com'),
+
+  // Platform licence (docs/operations/PLATFORM-LICENSING.md). All optional. A blank value
+  // reads as unset so a template line like `LICENSE_ENFORCEMENT=` cannot refuse a boot.
+  //   enforce  compute the state, block when it says so (default)
+  //   warn     compute and log/banner it, never block
+  //   off      do not even fetch the licence
+  LICENSE_ENFORCEMENT: z.preprocess(
+    (value) => (typeof value === 'string' ? (value.trim().toLowerCase() || undefined) : value),
+    z.enum(['enforce', 'warn', 'off']).default('enforce'),
+  ),
+  // Where this backend reaches the SSO backend (the mirror sets http://127.0.0.1:9300).
+  LICENSE_SSO_URL: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().url().default('http://127.0.0.1:7300'),
+  ),
+  LICENSE_POLL_SECONDS: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.coerce.number().int().min(10).max(86_400).default(300),
+  ),
+  // Pins the expected token issuer. Unset: the issuer SSO's own discovery document reports is used.
+  LICENSE_ISSUER: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
+  // Where the last verified token is kept so a restart while SSO is down still enforces it.
+  // Default: <backend cwd>/data/license (git-ignored).
+  LICENSE_DATA_DIR: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
 }).superRefine((env, ctx) => {
   if (env.NODE_ENV === 'production') {
     if (env.CLIENT_URL.includes('localhost')) {

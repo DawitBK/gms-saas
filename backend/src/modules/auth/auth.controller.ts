@@ -8,6 +8,7 @@ import { ErrorCodes } from '../../core/errors/errorCodes';
 import { attachCsrfCookie, clearCsrfCookie } from '../../shared/middleware/csrf.middleware';
 import { mapPublicAuthResponse } from './auth.dto';
 import { authService as defaultAuthService } from '../../composition';
+import { logAudit } from '../../shared/services/audit.service';
 
 /**
  * Auth Controller
@@ -149,6 +150,9 @@ public changePassword = async (req: Request, res: Response): Promise<void> => {
   const { old_password, new_password } = req.body;
   const userId = (req as any).user.id;
   await this.authService.changePassword(userId, old_password, new_password);
+  // Audited here, after the service has verified the old password and written
+  // the new hash. The row records only that it happened -- never either password.
+  await logAudit(userId, 'PASSWORD_CHANGE', 'User', userId, null, { method: 'SELF_SERVICE' });
   sendSuccess(res, { message: 'Password updated successfully.' });
 };
 

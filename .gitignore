@@ -25,6 +25,8 @@ frontend/next-env.d.ts
 *.out
 *.err
 backups/
+# Last verified platform-licence token (backend/src/modules/license): runtime state, never committed.
+backend/data/
 backend/CRASH.log
 backend/error.txt
 backend/error_trace.txt

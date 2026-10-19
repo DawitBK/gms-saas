@@ -2,6 +2,7 @@ import { ServiceRepository } from '../service.repository';
 import { resolveScopedOfficeId } from '../../../shared/auth/scope-resolver';
 import { AppError } from '../../../core/errors/AppError';
 import { ErrorCodes } from '../../../core/errors/errorCodes';
+import { logAudit } from '../../../shared/services/audit.service';
 
 export type ServiceActor = { id: number; roles?: string[]; office_id?: number };
 
@@ -32,6 +33,15 @@ export class RestoreServiceInteractor {
     if (!result) {
       throw new AppError('Restore operation failed', ErrorCodes.SYSTEM_DATABASE_ERROR, 500);
     }
+
+    await logAudit(
+      actor?.id ?? null,
+      'SERVICE_RESTORE',
+      'Service',
+      id,
+      { archived: true },
+      { name: (existing as any).name, office_id: (existing as any).office_id ?? null, archived: false },
+    );
 
     return { restored: true };
   }

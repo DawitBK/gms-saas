@@ -5,6 +5,9 @@ on:
     branches: [main, master]
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.ref }}
   cancel-in-progress: true
@@ -16,16 +19,18 @@ jobs:
   env-files:
     name: No tracked env files
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: node tools/check-tracked-env-files.js
 
   typecheck:
     name: TypeScript Check
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
           cache: npm
@@ -34,7 +39,7 @@ jobs:
         working-directory: backend
       - run: npx tsc --noEmit
         working-directory: backend
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
           cache: npm
@@ -47,6 +52,7 @@ jobs:
   test:
     name: Backend Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: typecheck
     services:
       postgres:
@@ -96,8 +102,8 @@ jobs:
       ENABLE_UNIFI_ACCESS_POLLING: false
       REDIS_URL: redis://localhost:6379/1
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
           cache: npm
@@ -112,11 +118,14 @@ jobs:
       - name: Seed test DB
         working-directory: backend
         run: node scripts/run-sequelize-cli.js test db:seed --seed 000-core-seeder.js
-      - run: npm test -- --runInBand
+      # All suites pass in about 20 seconds, then Jest never exits: something the app opens during the tests is not closed
+      # ("Jest did not exit one second after the test run has completed"), and the job sat there until its timeout.
+      # --forceExit ends the process once the results are written, as `test:coverage` in package.json already does.
+      - run: npm test -- --runInBand --forceExit
         working-directory: backend
       - run: npm run test:status
       - run: git diff --exit-code -- docs/TEST_STATUS.md
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: backend-coverage
@@ -131,10 +140,11 @@ jobs:
   frontend:
     name: Frontend Lint + Build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: typecheck
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
           cache: npm
@@ -143,15 +153,26 @@ jobs:
         working-directory: frontend
       - run: npm run lint
         working-directory: frontend
+      # `npm run build` ends with a postbuild step that stamps .env.production
+      # into .next/BUILD_ENV_FINGERPRINT.json and fails when that file is
+      # missing. It is gitignored, so a CI checkout has none (this failed the
+      # job from 2026-10-11). Build it from the committed .env.docker-build
+      # template, the same way the frontend Dockerfile does.
+      - name: Create .env.production from the committed template
+        working-directory: frontend
+        run: node scripts/write-docker-env.js
+      - run: npm run env:check:prod
+        working-directory: frontend
       - run: npm run build
         working-directory: frontend
 
   openapi:
     name: OpenAPI Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
           cache: npm
@@ -168,12 +189,14 @@ jobs:
   docker-build:
     name: Docker Build Smoke Test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [test, openapi, frontend]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build backend image
-        run: docker build -t gms-backend:ci ./backend
+        # `vendor` supplies the xlsx tarball package.json points at (../vendor).
+        run: docker build --build-context vendor=./vendor -t gms-backend:ci ./backend
       - name: Build frontend image
         # Build args are only a smoke test that the image builds; they are not
         # the deployed values. They were 5000/3000 — the pre-7xxx scheme.
@@ -182,6 +205,7 @@ jobs:
         # scripts/check-env-presence.js.
         run: |
           docker build \
+            --build-context vendor=./vendor \
             --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:7200/api/v1 \
             --build-arg NEXT_PUBLIC_SOCKET_URL=http://localhost:7200 \
             --build-arg NEXT_PUBLIC_APP_URL=http://localhost:7201 \

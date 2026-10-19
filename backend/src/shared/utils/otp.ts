@@ -167,3 +167,109 @@ export function otpChallengeIsLive(issuedAt: unknown, ttlMs: number): boolean {
   if (!Number.isFinite(ms)) return false;
   return Date.now() - ms <= ttlMs;
 }
+
+/* ------------------------------------------------------------------------ *
+ * Sealing a code for the outbox / queue hand-off
+ * ------------------------------------------------------------------------ *
+ *
+ * The users table holds only a keyed digest (hashOtp above), but the e-mail
+ * that carries the code is sent by a worker that runs later, and the only way
+ * to hand it the code was to put the plaintext in the job payload — which the
+ * outbox persists in `outbox_events.payload` (and BullMQ keeps in Redis). A
+ * PROCESSED row stayed in that table forever with a live-looking credential in
+ * it; a six-digit code with a 10-30 minute life is a password-reset or
+ * registration takeover for as long as it is valid.
+ *
+ * Two layers, both needed:
+ *
+ *  1. SEAL at enqueue time: the payload carries `otp_sealed` (AES-256-GCM under
+ *     a key HKDF-derived from the same secret as the digest, with its own
+ *     `info` label, bound to the account id) instead of `otp`. A database dump,
+ *     a read-only reporting connection or an operator running
+ *     `SELECT payload FROM outbox_events` sees ciphertext. The worker opens it
+ *     with `openSealedOtp`, so a retry can still send the code until the job
+ *     is dispatched.
+ *  2. REDACT at dispatch time: outbox.repository.ts deletes `otp` and
+ *     `otp_sealed` from the stored payload once the row is PROCESSED or
+ *     DEAD_LETTER, so nothing is retained afterwards even in sealed form.
+ *
+ * `resolveJobOtp` also accepts a legacy plaintext `otp`, because rows queued by
+ * the previous build may still be waiting when this one starts.
+ */
+
+/** Payload keys that carry a one-time code. Redaction removes exactly these. */
+export const OTP_PAYLOAD_KEYS = ['otp', 'otp_sealed'] as const;
+
+let cachedSealKey: Buffer | null = null;
+function otpSealKey(): Buffer {
+  if (cachedSealKey) return cachedSealKey;
+  const base = process.env.OTP_PEPPER || process.env.JWT_SECRET || 'gms-development-otp-pepper-not-for-production';
+  cachedSealKey = Buffer.from(
+    crypto.hkdfSync('sha256', Buffer.from(base, 'utf8'), Buffer.alloc(0), Buffer.from('gms:otp-queue-seal:v1', 'utf8'), 32),
+  );
+  return cachedSealKey;
+}
+
+const sealAad = (userId: number | string) => Buffer.from(`gms:otp-queue:${userId}`, 'utf8');
+
+/** Encrypt a code for a queue payload. Output: `v1.<base64url(iv|tag|ciphertext)>`. */
+export function sealOtp(otp: string, userId: number | string): string {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', otpSealKey(), iv);
+  cipher.setAAD(sealAad(userId));
+  const ct = Buffer.concat([cipher.update(otp, 'utf8'), cipher.final()]);
+  return `v1.${Buffer.concat([iv, cipher.getAuthTag(), ct]).toString('base64url')}`;
+}
+
+/** Decrypt a sealed code; null when the value is malformed, tampered with, for another user, or the key changed. */
+export function openSealedOtp(sealed: unknown, userId: number | string): string | null {
+  if (typeof sealed !== 'string' || !sealed.startsWith('v1.')) return null;
+  try {
+    const raw = Buffer.from(sealed.slice(3), 'base64url');
+    if (raw.length < 12 + 16 + 1) return null;
+    const decipher = crypto.createDecipheriv('aes-256-gcm', otpSealKey(), raw.subarray(0, 12));
+    decipher.setAAD(sealAad(userId));
+    decipher.setAuthTag(raw.subarray(12, 28));
+    const otp = Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString('utf8');
+    return OTP_PATTERN.test(otp) ? otp : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A copy of a job payload with the one-time code removed and an `otp_redacted`
+ * marker added (the same shape the outbox's SQL redaction leaves). Returns the
+ * input untouched when it carries no code. Used wherever a payload is copied
+ * somewhere that outlives the job (the dead-letter queue, a scrubbed BullMQ job).
+ */
+export function redactOtpFields<T>(data: T): T {
+  if (!data || typeof data !== 'object') return data;
+  const record = data as Record<string, unknown>;
+  if (!OTP_PAYLOAD_KEYS.some((key) => key in record)) return data;
+  const copy: Record<string, unknown> = { ...record };
+  for (const key of OTP_PAYLOAD_KEYS) delete copy[key];
+  copy.otp_redacted = true;
+  return copy as T;
+}
+
+/** The payload every OTP e-mail job is queued with: the code is sealed, never plaintext. */
+export function otpEmailJobPayload<T extends string>(
+  userId: number | string,
+  otp: string,
+  template: T,
+): { guestId: number | string; otp_sealed: string; template: T } {
+  return { guestId: userId, otp_sealed: sealOtp(otp, userId), template };
+}
+
+/**
+ * The code a worker should send for a job payload, or null when there is none
+ * (already redacted, tampered, or sealed under a key that has since changed).
+ */
+export function resolveJobOtp(data: { guestId?: number | string; otp?: unknown; otp_sealed?: unknown }): string | null {
+  if (data.otp_sealed !== undefined && data.guestId !== undefined) {
+    return openSealedOtp(data.otp_sealed, data.guestId);
+  }
+  // Legacy plaintext payload queued by the build before sealing.
+  return typeof data.otp === 'string' && OTP_PATTERN.test(data.otp) ? data.otp : null;
+}
