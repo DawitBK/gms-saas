@@ -138,6 +138,20 @@ export const envSchema = z.object({
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.string().min(1).optional(),
   ),
+  // Per-application entitlement (PLATFORM-LICENSING.md section 9). Unset: true in production, false
+  // elsewhere (resolved in app.config.ts, so the default can follow NODE_ENV). Required and unlicensed:
+  // every request except sign-in, health and the licence routes answers 403 LICENSE_REQUIRED.
+  LICENSE_REQUIRED: z.preprocess(
+    (value) => (typeof value === 'string' ? (value.trim().toLowerCase() || undefined) : value),
+    z.enum(['true', 'false']).transform((value) => value === 'true').optional(),
+  ),
+  // A JSON array of PUBLIC RS256 JWKs. When licensing is required these are the ONLY keys that verify a
+  // licence token (SSO's JWKS is not trusted). Parsed leniently at boot: a bad entry is reported in the
+  // log at error level and skipped, never a reason to refuse to boot.
+  LICENSE_TRUST_PUBLIC_KEYS: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
 }).superRefine((env, ctx) => {
   if (env.NODE_ENV === 'production') {
     if (env.CLIENT_URL.includes('localhost')) {
@@ -165,3 +179,16 @@ export const envSchema = z.object({
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
+
+/** LICENSE_REQUIRED (PLATFORM-LICENSING.md section 9): unset means true in production, false elsewhere. */
+export const resolveLicenseRequired = (env: Pick<EnvConfig, 'LICENSE_REQUIRED' | 'NODE_ENV'>): boolean =>
+  env.LICENSE_REQUIRED ?? env.NODE_ENV === 'production';
+
+/**
+ * The licence's deployment mode, computed from GMS's own SSO integration config and never by a client:
+ * `sso` when the token bridge's shared key, or the outbound roles API's base URL and key, is configured.
+ */
+export const resolveLicenseDeployment = (
+  env: Pick<EnvConfig, 'SSO_INTERNAL_API_KEY' | 'SSO_API_BASE' | 'SSO_ROLES_API_KEY'>,
+): 'sso' | 'standalone' =>
+  env.SSO_INTERNAL_API_KEY || (env.SSO_API_BASE && env.SSO_ROLES_API_KEY) ? 'sso' : 'standalone';

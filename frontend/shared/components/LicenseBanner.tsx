@@ -13,9 +13,17 @@ const formatDate = (iso: string | null) => {
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-/** Pure, so the wording is in one place: licence status in, the notice to show (or null) out. "No licence configured" shows nothing (owner decision 2026-10-19). */
+/**
+ * Pure, so the wording is in one place: licence status in, the notice to show (or null) out. Where a licence is
+ * required and the system is not licensed, everyone sees the red notice (section 9); everywhere else a system
+ * with nothing installed shows nothing at all (owner decision 2026-10-19).
+ */
 export function licenseNotice(status: LicenseStatus | undefined): Notice | null {
   if (!status) return null;
+
+  if (status.required && !status.licensed) {
+    return { key: "not-licensed", tone: "red", text: "This system is not licensed. Contact your administrator." };
+  }
 
   switch (status.state) {
     case "expiring": {

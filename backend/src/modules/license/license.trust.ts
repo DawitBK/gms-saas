@@ -8,6 +8,7 @@
  * Every network call has a hard timeout and every failure surfaces as an exception the caller treats
  * as "could not reach SSO": keep the last good token, never block anyone.
  */
+import crypto from 'crypto';
 import type { Jwk } from './license.token';
 
 export interface TrustConfig {
@@ -81,4 +82,60 @@ export class SsoTrust {
     this.discoveredIssuer = issuer;
     return issuer;
   }
+}
+
+/**
+ * LICENSE_TRUST_PUBLIC_KEYS (section 9): a JSON array of PUBLIC RS256 JWKs. When licensing is required
+ * these are the only keys that verify a licence token. Never throws: a bad entry is skipped and named in
+ * `errors` (the boot log says why a system is unlicensed). An entry that carries private key material is
+ * refused outright, so a private key pasted here by mistake is never used or kept in memory.
+ */
+const PRIVATE_JWK_FIELDS = ['d', 'p', 'q', 'dp', 'dq', 'qi', 'oth'];
+
+/** RFC 7638 thumbprint, base64url: the `kid` the licence signer uses when the JWK carries none. */
+export function jwkThumbprint(jwk: { e: string; n: string }): string {
+  const canonical = JSON.stringify({ e: jwk.e, kty: 'RSA', n: jwk.n });
+  return crypto.createHash('sha256').update(canonical).digest('base64url');
+}
+
+export function parseTrustPublicKeys(raw: string | undefined | null): { keys: Jwk[]; errors: string[] } {
+  const errors: string[] = [];
+  if (raw === undefined || raw === null || raw.trim() === '') return { keys: [], errors };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { keys: [], errors: ['LICENSE_TRUST_PUBLIC_KEYS is not valid JSON'] };
+  }
+  if (!Array.isArray(parsed)) {
+    return { keys: [], errors: ['LICENSE_TRUST_PUBLIC_KEYS must be a JSON array of public JWKs'] };
+  }
+
+  const keys: Jwk[] = [];
+  parsed.forEach((entry, index) => {
+    const label = `LICENSE_TRUST_PUBLIC_KEYS[${index}]`;
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      errors.push(`${label} is not an object`);
+      return;
+    }
+    const jwk = entry as Record<string, unknown>;
+    if (PRIVATE_JWK_FIELDS.some((field) => field in jwk)) {
+      errors.push(`${label} carries private key material and was refused: only public keys belong here`);
+      return;
+    }
+    if (jwk.kty !== 'RSA' || typeof jwk.n !== 'string' || typeof jwk.e !== 'string' || !jwk.n || !jwk.e) {
+      errors.push(`${label} is not a public RSA JWK (kty, n and e are required)`);
+      return;
+    }
+    try {
+      crypto.createPublicKey({ key: { kty: 'RSA', n: jwk.n, e: jwk.e } as unknown as import('crypto').JsonWebKeyInput['key'], format: 'jwk' });
+    } catch {
+      errors.push(`${label} is not a usable RSA public key`);
+      return;
+    }
+    const kid = typeof jwk.kid === 'string' && jwk.kid ? jwk.kid : jwkThumbprint({ e: jwk.e, n: jwk.n });
+    keys.push({ kty: 'RSA', kid, n: jwk.n, e: jwk.e, alg: 'RS256', use: 'sig' });
+  });
+  return { keys, errors };
 }

@@ -3,9 +3,11 @@
  * `enforcement` is an additive extra the contract does not list; the frontend treats it as optional.
  */
 import { logger } from '../../core/logger/logger';
+import { computeEntitlement, type EntitlementReason } from './license.entitlement';
 import { countSeatsUsed } from './license.seats';
 import { licenseStore, type LicenseSource, type LicenseStore } from './license.store';
 import type { LicenseState } from './license.state';
+import type { LicenseMode } from './license.token';
 
 export interface LicenseStatusDto {
   system: 'gms';
@@ -24,6 +26,13 @@ export interface LicenseStatusDto {
   fetchedAt: string | null;
   version: number | null;
   enforcement: 'enforce' | 'warn' | 'off';
+  /** Section 9: is a licence required here (LICENSE_REQUIRED)? */
+  required: boolean;
+  /** Section 9: may this system be used (always true when not required). */
+  licensed: boolean;
+  reason: EntitlementReason | null;
+  /** Section 9: computed by the backend from its own SSO integration config. */
+  deployment: LicenseMode;
 }
 
 export async function buildLicenseStatus(
@@ -32,6 +41,9 @@ export async function buildLicenseStatus(
 ): Promise<LicenseStatusDto> {
   const snap = store.snapshot();
   const claims = snap.claims;
+  const required = store.required === true;
+  const deployment: LicenseMode = store.deployment ?? 'sso';
+  const entitlement = computeEntitlement({ required, deployment, token: claims });
 
   let seatsUsed: number | null = null;
   try {
@@ -57,5 +69,9 @@ export async function buildLicenseStatus(
     fetchedAt: snap.fetchedAt ? snap.fetchedAt.toISOString() : null,
     version: claims?.ver ?? null,
     enforcement: store.enforcement,
+    required,
+    licensed: entitlement.licensed,
+    reason: entitlement.reason,
+    deployment,
   };
 }

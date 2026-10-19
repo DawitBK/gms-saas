@@ -305,3 +305,63 @@ describe('LICENSE_ENFORCEMENT modes (real app)', () => {
     expect(codeOf(await send('get', '/availability/time_slots'))).not.toBe('LICENSE_MODULE_DISABLED');
   });
 });
+
+describe('LICENSE_REQUIRED through the real app (section 9)', () => {
+  const requireLicense = (state: LicenseState = 'unknown') => {
+    jest.spyOn(licenseStore, 'snapshot').mockReturnValue(snapshot(state));
+    jest.spyOn(licenseStore, 'enforcement', 'get').mockReturnValue('enforce');
+    jest.spyOn(licenseStore, 'required', 'get').mockReturnValue(true);
+    jest.spyOn(licenseStore, 'deployment', 'get').mockReturnValue('sso');
+  };
+
+  it.each([
+    ['get', '/users'],
+    ['post', '/visits'],
+    ['get', '/operations/dashboard'],
+    ['post', '/auth/register'],
+  ] as const)('unlicensed: %s %s answers 403 LICENSE_REQUIRED', async (method, path) => {
+    requireLicense();
+    const res = await send(method, path);
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({
+      success: false,
+      error: { code: 'LICENSE_REQUIRED', message: 'This system is not licensed. Contact your administrator.', details: { reason: 'NO_LICENSE' } },
+    });
+  });
+
+  it.each([
+    ['get', '/health'],
+    ['get', '/license/status'],
+    ['post', '/license/install'],
+    ['post', '/auth/login'],
+    ['post', '/auth/refresh'],
+    ['post', '/auth/logout'],
+    ['get', '/auth/me'],
+    ['post', '/internal/sso/sessions'],
+  ] as const)('unlicensed: %s %s is exempt', async (method, path) => {
+    requireLicense();
+    expect(codeOf(await send(method, path))).not.toBe('LICENSE_REQUIRED');
+  });
+
+  it('the install route needs no sign-in (a missing token is a 400, not a 401)', async () => {
+    requireLicense();
+    const res = await send('post', '/license/install');
+    expect(res.status).toBe(400);
+    expect(codeOf(res)).toBe('INVALID_INPUT');
+  });
+
+  it('licensed: nothing is refused for entitlement', async () => {
+    jest.spyOn(licenseStore, 'snapshot').mockReturnValue(snapshot('active', { modes: ['sso'] }));
+    jest.spyOn(licenseStore, 'enforcement', 'get').mockReturnValue('enforce');
+    jest.spyOn(licenseStore, 'required', 'get').mockReturnValue(true);
+    jest.spyOn(licenseStore, 'deployment', 'get').mockReturnValue('sso');
+    expect(codeOf(await send('get', '/users'))).not.toBe('LICENSE_REQUIRED');
+  });
+
+  it('a guard that throws while required lets the request through', async () => {
+    jest.spyOn(licenseStore, 'required', 'get').mockImplementation(() => {
+      throw new Error('boom');
+    });
+    expect(codeOf(await send('post', '/users'))).not.toBe('LICENSE_REQUIRED');
+  });
+});

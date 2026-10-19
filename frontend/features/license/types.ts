@@ -22,4 +22,11 @@ export interface LicenseStatus {
   fetchedAt: string | null;
   version: number | null;
   enforcement?: 'enforce' | 'warn' | 'off';
+  /** Section 9: a licence is required on this installation (LICENSE_REQUIRED). */
+  required: boolean;
+  /** Section 9: the system may be used. Always true when not required. */
+  licensed: boolean;
+  reason: 'NO_LICENSE' | 'MODE_NOT_LICENSED' | null;
+  /** Computed by the backend from its own SSO integration config. */
+  deployment: 'sso' | 'standalone';
 }

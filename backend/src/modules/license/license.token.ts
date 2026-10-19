@@ -38,7 +38,17 @@ export interface LicenseClaims {
   maxUsers: number | null;
   /** null = all gateable modules enabled */
   modules: string[] | null;
+  /**
+   * Deployment modes this licence covers (section 9). Absent or empty in the token means `['sso']`;
+   * `verifyLicenseToken` always fills it in. Optional in the type only so older fixtures still compile.
+   */
+  modes?: LicenseMode[];
+  /** Unique id of this issued token (audit); null when the token has none. */
+  jti?: string | null;
 }
+
+export type LicenseMode = 'sso' | 'standalone';
+export const LICENSE_MODES: readonly LicenseMode[] = ['sso', 'standalone'];
 
 export class LicenseTokenError extends Error {
   constructor(
@@ -80,7 +90,12 @@ const isIntInRange = (value: unknown, min: number, max: number): value is number
 
 export interface VerifyOptions {
   system: string;
-  expectedIssuer: string;
+  /**
+   * The issuer the token must carry. `null` means "do not check it": used with pinned
+   * LICENSE_TRUST_PUBLIC_KEYS, where the signing key itself is the authority (section 9), so SSO's
+   * discovery document is neither needed nor trusted.
+   */
+  expectedIssuer: string | null;
   keys: Jwk[];
 }
 
@@ -118,7 +133,9 @@ export function verifyLicenseToken(token: string, options: VerifyOptions): Licen
 
   const payload = parseJsonPart(payloadPart, 'payload');
 
-  if (payload.iss !== options.expectedIssuer) throw new LicenseTokenError('licence token issuer mismatch', 'bad_claims');
+  if (options.expectedIssuer !== null && payload.iss !== options.expectedIssuer) {
+    throw new LicenseTokenError('licence token issuer mismatch', 'bad_claims');
+  }
   const aud = payload.aud;
   const audOk = Array.isArray(aud) ? aud.includes(`license:${options.system}`) : aud === `license:${options.system}`;
   if (!audOk) throw new LicenseTokenError('licence token audience mismatch', 'bad_claims');
@@ -155,8 +172,21 @@ export function verifyLicenseToken(token: string, options: VerifyOptions): Licen
     modules = payload.modules as string[];
   }
 
+  // `modes`: absent or empty means ['sso'] (section 9). Anything but the two known values is refused.
+  let modes: LicenseMode[] = ['sso'];
+  if (payload.modes !== null && payload.modes !== undefined) {
+    if (!Array.isArray(payload.modes) || payload.modes.some((m) => !LICENSE_MODES.includes(m as LicenseMode))) {
+      throw new LicenseTokenError('licence token modes is invalid', 'bad_claims');
+    }
+    if (payload.modes.length > 0) modes = [...new Set(payload.modes as LicenseMode[])];
+  }
+
+  if (payload.jti !== undefined && payload.jti !== null && typeof payload.jti !== 'string') {
+    throw new LicenseTokenError('licence token jti is invalid', 'bad_claims');
+  }
+
   return {
-    iss: payload.iss as string,
+    iss: typeof payload.iss === 'string' ? payload.iss : '',
     aud: `license:${options.system}`,
     sys: payload.sys as string,
     ver: payload.ver,
@@ -167,5 +197,7 @@ export function verifyLicenseToken(token: string, options: VerifyOptions): Licen
     warnDays: payload.warnDays,
     maxUsers,
     modules,
+    modes,
+    jti: typeof payload.jti === 'string' ? payload.jti : null,
   };
 }

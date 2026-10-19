@@ -923,7 +923,16 @@ Object.assign(swaggerSpec.paths, {
       description:
         "Any authenticated user. state is one of unconfigured | unknown | active | expiring | grace | expired; readOnly is true only for expired under LICENSE_ENFORCEMENT=enforce. See docs/operations/PLATFORM-LICENSING.md.",
       security: [{ bearerAuth: [] }],
-      responses: { 200: { description: "Licence status" } },
+      responses: { 200: { description: "Licence status (adds required, licensed, reason, deployment: PLATFORM-LICENSING.md section 9)" } },
+    },
+  },
+  "/license/install": {
+    post: {
+      tags: ["System"],
+      summary: "Install a signed licence token",
+      description:
+        "Unauthenticated and rate-limited: the token's signature is the authority. Body {token}. Verified against the trusted licence keys like a token SSO served; never lowers the stored version. 400 INVALID_INPUT when rejected, 429 when rate-limited. See docs/operations/PLATFORM-LICENSING.md section 9.",
+      responses: { 200: { description: "Install outcome (installed | unchanged | ignored_older)" } },
     },
   },
   "/availability/time_slots/{id}": {

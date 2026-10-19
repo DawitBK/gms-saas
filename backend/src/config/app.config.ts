@@ -1,5 +1,6 @@
 import path from 'path';
 import { env } from './index';
+import { resolveLicenseDeployment, resolveLicenseRequired } from './env.schema';
 
 const normalizePath = (value: string) => {
   const trimmed = value.trim();
@@ -199,6 +200,12 @@ export const appConfig = {
     dataDir: env.LICENSE_DATA_DIR
       ? path.resolve(env.LICENSE_DATA_DIR)
       : path.resolve(process.cwd(), 'data', 'license'),
+    /** LICENSE_REQUIRED: true in production (live and mirror) unless set, false elsewhere. */
+    required: resolveLicenseRequired(env),
+    /** Raw LICENSE_TRUST_PUBLIC_KEYS; parsed (and its problems logged) by license.store.ts. */
+    trustPublicKeys: env.LICENSE_TRUST_PUBLIC_KEYS,
+    /** `sso` when GMS's own SSO integration is configured, otherwise `standalone` (never from a client). */
+    deployment: resolveLicenseDeployment(env),
   },
   webPush: {
     publicKey: env.VAPID_PUBLIC_KEY,

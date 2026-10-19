@@ -121,6 +121,11 @@ describe('GET /license/status payload', () => {
       fetchedAt: '2026-10-19T12:00:00.000Z',
       version: 4,
       enforcement: 'enforce',
+      // section 9 additions: not required here, so always licensed
+      required: false,
+      licensed: true,
+      reason: null,
+      deployment: 'sso',
     });
   });
 

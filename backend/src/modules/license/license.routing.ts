@@ -49,6 +49,28 @@ export function moduleForPath(normalizedPath: string): GmsLicenseModule | null {
   return FIRST_SEGMENT_MODULE[first] ?? null;
 }
 
+/**
+ * Requests that still work while LICENSE_REQUIRED is true and the system is unlicensed (section 9): health,
+ * the licence status and install routes, sign-in (login, its second factor, refresh, logout, `me`) and the
+ * SSO bridge / native SSO sign-in under /internal/sso. Exact paths (so `/auth/login/x` is not exempt) and any
+ * method. `/metrics` and `/health` are registered before the guard and never reach it; `/health` is listed so
+ * the list stays true if that order ever changes. Static assets are not served by this API at all.
+ */
+export const LICENSE_REQUIRED_EXEMPT: ReadonlyArray<{ pattern: RegExp; why: string }> = [
+  { pattern: /^\/health$/, why: 'health' },
+  { pattern: /^\/license\/status$/, why: 'licence status' },
+  { pattern: /^\/license\/install$/, why: 'licence install' },
+  { pattern: /^\/auth\/login$/, why: 'sign-in' },
+  { pattern: /^\/auth\/verify-2fa$/, why: 'second factor at sign-in' },
+  { pattern: /^\/auth\/refresh$/, why: 'session refresh' },
+  { pattern: /^\/auth\/logout$/, why: 'sign-out' },
+  { pattern: /^\/auth\/me$/, why: 'current session' },
+  { pattern: /^\/internal\/sso(\/.*)?$/, why: 'SSO token bridge and native SSO sign-in' },
+];
+
+export const isLicenseRequiredExempt = (normalizedPath: string): boolean =>
+  LICENSE_REQUIRED_EXEMPT.some((entry) => entry.pattern.test(normalizedPath));
+
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export const isSafeMethod = (method: string): boolean => SAFE_METHODS.has(method.toUpperCase());

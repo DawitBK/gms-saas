@@ -15,6 +15,7 @@ export function isLicenseModuleEnabled(status: LicenseStatus | null | undefined,
 export const LICENSE_ERROR_MESSAGES: Record<string, string> = {
   LICENSE_EXPIRED: 'The licence has expired and the system is read-only. You can still view records. Contact your administrator.',
   LICENSE_MODULE_DISABLED: 'This feature is not included in your licence. Contact your administrator.',
+  LICENSE_REQUIRED: 'This system is not licensed. Contact your administrator.',
   LICENSE_SEAT_LIMIT: 'The licence seat limit has been reached, so no more active accounts can be added. Contact your administrator.',
 };
 
