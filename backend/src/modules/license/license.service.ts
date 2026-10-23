@@ -33,6 +33,8 @@ export interface LicenseStatusDto {
   reason: EntitlementReason | null;
   /** Section 9: computed by the backend from its own SSO integration config. */
   deployment: LicenseMode;
+  /** Additive: which date is binding, the licence's own or SSO's (this system ends when SSO ends). null when no licence is held. */
+  limitedBy: 'licence' | 'sso' | null;
 }
 
 export async function buildLicenseStatus(
@@ -73,5 +75,6 @@ export async function buildLicenseStatus(
     licensed: entitlement.licensed,
     reason: entitlement.reason,
     deployment,
+    limitedBy: snap.limitedBy ?? null,
   };
 }

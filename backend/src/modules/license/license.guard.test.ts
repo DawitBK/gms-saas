@@ -161,6 +161,7 @@ describe('read-only guard: state expired (real app)', () => {
     ['get', '/internal/sso/offices', 'SSO bridge offices'],
     ['get', '/internal/sso/users/by-email/a%40b.co/status', 'SSO bridge status'],
     ['post', '/ocr/scan', 'OCR extraction'],
+    ['post', '/license/install', 'licence install (renewing an expired licence)'],
   ];
 
   it('the probe list covers every allowlist entry', () => {

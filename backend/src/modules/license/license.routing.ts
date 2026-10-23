@@ -96,6 +96,9 @@ export const READ_ONLY_ALLOWLIST: ReadonlyArray<{ methods: readonly string[] | '
   { methods: ['POST'], pattern: /^\/auth\/verify-password$/, why: 'password re-confirmation (a query)' },
   { methods: '*', pattern: /^\/internal\/sso(\/.*)?$/, why: 'SSO token bridge and native SSO sign-in' },
   { methods: ['POST'], pattern: /^\/ocr\/scan$/, why: 'OCR extraction (a query; stores nothing)' },
+  // The way OUT of an expired licence. It is exempt while a licence is missing (LICENSE_REQUIRED_EXEMPT) and must be here too, or an expired GMS
+  // refuses the very request that would renew it (found in the 2026-10-21 mirror rehearsal; DMS and SSO already allowed it).
+  { methods: ['POST'], pattern: /^\/license\/install$/, why: 'licence install (renewal while expired)' },
 ];
 
 export function isReadOnlyAllowlisted(method: string, normalizedPath: string): boolean {

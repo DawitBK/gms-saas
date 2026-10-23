@@ -194,6 +194,8 @@ export const appConfig = {
     pollSeconds: env.LICENSE_POLL_SECONDS,
     issuer: env.LICENSE_ISSUER,
     publicTokenPath: '/api/v1/licenses/public/gms',
+    /** SSO's "SSO ends on this date" note (modules/license/license.ceiling.ts): this system ends no later than SSO does. */
+    ceilingPath: '/api/v1/licenses/public/sso-expiry',
     jwksPath: '/jwks',
     discoveryPath: '/.well-known/openid-configuration',
     requestTimeoutMs: 5_000,
@@ -206,6 +208,10 @@ export const appConfig = {
     trustPublicKeys: env.LICENSE_TRUST_PUBLIC_KEYS,
     /** `sso` when GMS's own SSO integration is configured, otherwise `standalone` (never from a client). */
     deployment: resolveLicenseDeployment(env),
+  },
+  /** Incident containment (modules/license/incident.lock.ts): the lock file's path; undefined = feature off. */
+  incident: {
+    lockFile: env.INCIDENT_LOCK_FILE,
   },
   webPush: {
     publicKey: env.VAPID_PUBLIC_KEY,

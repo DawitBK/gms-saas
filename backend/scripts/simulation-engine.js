@@ -922,7 +922,7 @@ async function runLiveTurbo(infra, guests) {
           const receptionistId = host ? host.user_id : 1; 
           
           await sequelize.query(
-            `INSERT INTO audit_logs (user_id, action, entity, entity_id, metadata, created_at)
+            `INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, metadata, created_at)
              VALUES (:actor, :action, 'Visit', :vid, :meta, NOW())`,
             {
               replacements: {
@@ -1046,7 +1046,7 @@ async function runLiveTurbo(infra, guests) {
           // We don't CHECK_IN via the engine (to simulate no scan), 
           // but we emit a system-level "Door Activity" event and a "Missing Scan" audit
           await sequelize.query(
-            `INSERT INTO audit_logs (user_id, action, entity, entity_id, metadata, created_at)
+            `INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, metadata, created_at)
              VALUES (1, 'UNAUTHORIZED_ENTRY_DETECTED', 'Visit', :vid, :meta, NOW())`,
             {
               replacements: {

@@ -30,6 +30,7 @@ import {
   type LicenseMode,
 } from './license.token';
 import { SsoTrust, fetchJson, parseTrustPublicKeys, type TrustConfig } from './license.trust';
+import { applyCeiling, verifyCeilingToken, type CeilingClaims, type LimitedBy } from './license.ceiling';
 
 export type LicenseSource = 'sso' | 'cache' | 'none';
 export type RefreshOutcome =
@@ -67,6 +68,24 @@ export interface LicenseStoreConfig extends TrustConfig {
   deployment?: LicenseMode;
   /** Only used to say, loudly, that LICENSE_REQUIRED=false in production. */
   isProduction?: boolean;
+  /**
+   * Where SSO publishes its "SSO ends on this date" note (license.ceiling.ts). Unset = never follow SSO. Followed only in the `sso` deployment mode:
+   * a standalone system must not end because of somebody else's SSO.
+   */
+  ceilingPath?: string;
+}
+
+interface HeldCeiling {
+  claims: CeilingClaims;
+  token: string;
+  fetchedAt: Date;
+}
+
+interface PersistedCeiling {
+  token: string;
+  issuer: string;
+  keys: Jwk[];
+  fetchedAt: string;
 }
 
 type Held =
@@ -100,16 +119,21 @@ export interface LicenseSnapshot {
   graceEndsAt: string | null;
   source: LicenseSource;
   fetchedAt: Date | null;
+  /** Claims as ENFORCED: the licence's own, with SSO's date, grace and warning days when SSO ends first. */
   claims: LicenseClaims | null;
+  /** Which date is binding: the licence's own, or SSO's ("SSO expiry follows"). null when no licence is held. */
+  limitedBy?: LimitedBy | null;
 }
 
 const FILE_NAME = 'last-token.json';
+const CEILING_FILE_NAME = 'sso-expiry.json';
 
 export class LicenseStore {
   private held: Held = { kind: 'unknown' };
   private timer: NodeJS.Timeout | null = null;
   private inFlight: Promise<RefreshOutcome> | null = null;
   private readonly trust: SsoTrust;
+  private ceiling: HeldCeiling | null = null;
 
   constructor(
     readonly config: LicenseStoreConfig,
@@ -143,6 +167,11 @@ export class LicenseStore {
     return this.config.trustKeys ?? [];
   }
 
+  /** Does this system poll SSO's note? Only in the `sso` deployment mode, and only where the note's path is configured. Whether the note then BINDS is applyCeiling's call: only a licence without `standalone` in its modes ends with SSO. */
+  private get followsSso(): boolean {
+    return Boolean(this.config.ceilingPath) && this.deployment === 'sso' && this.config.enforcement !== 'off';
+  }
+
   /** Section 9 entitlement for what is held right now. */
   entitlement(): Entitlement {
     return computeEntitlement({
@@ -155,6 +184,7 @@ export class LicenseStore {
   /** Loads the persisted token (verified offline against the key snapshot saved with it). Never throws. */
   loadFromDisk(): void {
     if (this.config.enforcement === 'off') return;
+    this.loadCeilingFromDisk();
     const file = path.join(this.config.dataDir, FILE_NAME);
     try {
       if (!fs.existsSync(file)) return;
@@ -207,15 +237,119 @@ export class LicenseStore {
     }
   }
 
+  // ── the "SSO ends on this date" note (license.ceiling.ts) ─────────────────────────────────────────────────────
+
+  private loadCeilingFromDisk(): void {
+    if (!this.followsSso) return;
+    const file = path.join(this.config.dataDir, CEILING_FILE_NAME);
+    try {
+      if (!fs.existsSync(file)) return;
+      const saved = JSON.parse(fs.readFileSync(file, 'utf8')) as PersistedCeiling;
+      if (!saved || typeof saved.token !== 'string' || typeof saved.issuer !== 'string' || !Array.isArray(saved.keys)) throw new Error('unexpected file shape');
+      const claims = verifyCeilingToken(saved.token, { expectedIssuer: saved.issuer, keys: saved.keys });
+      this.trust.seed(saved.keys, saved.issuer);
+      const fetchedAt = new Date(saved.fetchedAt);
+      this.ceiling = { claims, token: saved.token, fetchedAt: Number.isNaN(fetchedAt.getTime()) ? this.clock() : fetchedAt };
+      logger.info({ module: 'license', ver: claims.ver, expiresAt: claims.expiresAt }, 'Loaded the cached SSO expiry note');
+    } catch (err) {
+      // A corrupt or edited file is treated as no file: the licence's own date applies.
+      logger.warn({ module: 'license', err: (err as Error).message }, 'Ignoring the cached SSO expiry note');
+    }
+  }
+
+  private persistCeiling(token: string, keys: Jwk[], issuer: string): void {
+    try {
+      fs.mkdirSync(this.config.dataDir, { recursive: true });
+      const kid = peekTokenKid(token);
+      const body: PersistedCeiling = { token, issuer, keys: kid ? keys.filter((key) => key.kid === kid) : keys, fetchedAt: this.clock().toISOString() };
+      const target = path.join(this.config.dataDir, CEILING_FILE_NAME);
+      const tmp = `${target}.${process.pid}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify(body), 'utf8');
+      fs.renameSync(tmp, target);
+    } catch (err) {
+      logger.warn({ module: 'license', err: (err as Error).message }, 'Could not persist the SSO expiry note (continuing from memory)');
+    }
+  }
+
+  private async verifyCeiling(token: string): Promise<{ claims: CeilingClaims; keys: Jwk[]; issuer: string }> {
+    const issuer = await this.trust.getIssuer();
+    let keys = await this.trust.getKeys();
+    try {
+      return { claims: verifyCeilingToken(token, { expectedIssuer: issuer, keys }), keys, issuer };
+    } catch (err) {
+      if (err instanceof LicenseTokenError && err.reason === 'unknown_kid') {
+        keys = await this.trust.getKeys(true);
+        return { claims: verifyCeilingToken(token, { expectedIssuer: issuer, keys }), keys, issuer };
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * One poll of SSO's note. Never throws and never blocks anyone: an unreachable SSO, a bad answer or a note that does not verify leaves what is held
+   * untouched (so blocking SSO cannot bring an ended system back). Only SSO's own "no licence record" answer drops the held note.
+   */
+  private async refreshCeiling(): Promise<void> {
+    if (!this.followsSso) return;
+    const url = `${this.config.ssoUrl}${this.config.ceilingPath}`;
+    let status: number;
+    let body: unknown;
+    try {
+      ({ status, body } = await fetchJson(url, this.config.requestTimeoutMs));
+    } catch (err) {
+      logger.debug({ module: 'license', err: (err as Error).message }, 'SSO expiry note: SSO unreachable; keeping what is held');
+      return;
+    }
+    if (status === 404) {
+      // Only SSO's own "no licence" answer ({ error: { code: 'ERR-LICENSE-NOT-FOUND' } }) drops the note. Any other 404 (an SSO without this endpoint yet,
+      // a gateway, a proxy, an SSO in the middle of an update) says nothing about SSO's licence and must not bring an ended system back.
+      const errorCode = (body as { error?: { code?: unknown } } | null)?.error?.code;
+      if (errorCode !== 'ERR-LICENSE-NOT-FOUND') return;
+      if (this.ceiling) {
+        logger.info({ module: 'license' }, 'SSO has no licence record any more: the SSO expiry note is dropped, the licence\'s own date applies');
+        this.ceiling = null;
+        try {
+          fs.rmSync(path.join(this.config.dataDir, CEILING_FILE_NAME), { force: true });
+        } catch {
+          /* best effort */
+        }
+      }
+      return;
+    }
+    const token = (body as { token?: unknown } | null)?.token ?? (body as { data?: { token?: unknown } } | null)?.data?.token;
+    if (status !== 200 || typeof token !== 'string') return;
+    let verified: { claims: CeilingClaims; keys: Jwk[]; issuer: string };
+    try {
+      verified = await this.verifyCeiling(token);
+    } catch (err) {
+      logger.warn({ module: 'license', err: (err as Error).message }, 'Rejected an SSO expiry note; keeping the previous one');
+      return;
+    }
+    if (this.ceiling && verified.claims.ver < this.ceiling.claims.ver) {
+      logger.warn({ module: 'license', heldVer: this.ceiling.claims.ver, gotVer: verified.claims.ver }, 'Ignoring an older SSO expiry note');
+      return;
+    }
+    const changed = !this.ceiling || this.ceiling.token !== token;
+    this.ceiling = { claims: verified.claims, token, fetchedAt: this.clock() };
+    if (changed) {
+      this.persistCeiling(token, verified.keys, verified.issuer);
+      logger.info({ module: 'license', ver: verified.claims.ver, expiresAt: verified.claims.expiresAt }, 'SSO expiry note updated');
+    }
+  }
+
   /** One poll. Never throws; concurrent calls share one run. */
   refresh(): Promise<RefreshOutcome> {
     if (this.config.enforcement === 'off') return Promise.resolve('disabled');
     if (!this.inFlight) {
-      this.inFlight = this.doRefresh()
-        .catch((err): RefreshOutcome => {
+      // The licence and SSO's note are fetched side by side, so a slow one never delays or compounds the other.
+      this.inFlight = Promise.all([
+        this.doRefresh().catch((err): RefreshOutcome => {
           logger.warn({ module: 'license', err: (err as Error).message }, 'Licence poll failed; keeping the last known state');
           return 'unreachable';
-        })
+        }),
+        this.refreshCeiling().catch((err) => logger.warn({ module: 'license', err: (err as Error).message }, 'SSO expiry note poll failed; keeping what is held')),
+      ])
+        .then(([outcome]) => outcome)
         .finally(() => {
           this.inFlight = null;
         });
@@ -392,14 +526,16 @@ export class LicenseStore {
 
   snapshot(now: Date = this.clock()): LicenseSnapshot {
     const held = this.held;
+    // What is enforced is the licence's own dates, unless SSO's note says SSO ends first (license.ceiling.ts: it can only shorten).
+    const effective = held.kind === 'licensed' ? applyCeiling(held.claims, this.followsSso ? (this.ceiling?.claims ?? null) : null) : null;
     // `unknown` (never obtained a verified token) is this consumer's own state; the shared function
     // (a verbatim copy of SSO's licenses/state.ts) only knows "no record" and "a record".
     const computed =
       held.kind === 'unknown'
         ? { state: 'unknown' as LicenseState, daysRemaining: null, graceEndsAt: null }
         : computeLicenseState(
-            held.kind === 'licensed'
-              ? { expiresAt: held.claims.expiresAt, graceDays: held.claims.graceDays, warnDays: held.claims.warnDays }
+            effective
+              ? { expiresAt: effective.claims.expiresAt, graceDays: effective.claims.graceDays, warnDays: effective.claims.warnDays }
               : null,
             now,
           );
@@ -409,7 +545,8 @@ export class LicenseStore {
       graceEndsAt: computed.graceEndsAt,
       source: held.kind === 'licensed' ? held.source : held.kind === 'unconfigured' ? 'sso' : 'none',
       fetchedAt: held.kind === 'unknown' ? null : held.fetchedAt,
-      claims: held.kind === 'licensed' ? held.claims : null,
+      claims: effective ? effective.claims : null,
+      limitedBy: effective ? effective.limitedBy : null,
     };
   }
 }
@@ -432,4 +569,5 @@ export const licenseStore = new LicenseStore({
   trustKeyErrors: trust.errors,
   deployment: appConfig.license.deployment,
   isProduction: appConfig.isProduction,
+  ceilingPath: appConfig.license.ceilingPath,
 });

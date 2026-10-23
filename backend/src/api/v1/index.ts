@@ -21,6 +21,7 @@ import { appConfig } from '../../config/app.config';
 import internalSsoRoutes from '../../modules/auth/internal-sso.routes';
 import licenseRoutes from '../../modules/license/license.routes';
 import { licenseGuard } from '../../modules/license/license.guard';
+import { incidentGuard } from '../../modules/license/incident.guard';
 
 const router = Router();
 
@@ -56,6 +57,8 @@ router.get('/metrics', async (_req, res) => {
  * state unconfigured/unknown. The allowlist and the route-group -> module map live in
  * modules/license/license.routing.ts.
  */
+// Read-only containment while an incident lock is in force (INCIDENT_LOCK_FILE; unset = no effect). Before the licence guard: it never needs the licence.
+router.use(incidentGuard);
 router.use(licenseGuard);
 
 router.use('/auth', authRoutes);

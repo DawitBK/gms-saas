@@ -88,10 +88,29 @@ export const enqueueDeadLetter = async (queueName: string, jobName: string, payl
   });
 };
 
+// How long closeQueues waits for a queue's connection to finish its first handshake before closing it anyway.
+const QUEUE_READY_WAIT_MS = 5_000;
+
 export const closeQueues = async () => {
   await Promise.all(
     Object.values(queues).map(async (queue) => {
       try {
+        // A Queue starts connecting (and checking the Redis version) in its constructor and emits 'error' if its
+        // connection is closed before that finishes. A suite that never touches Redis can reach its afterAll
+        // first, and with no 'error' listener on the Queue that surfaced as "Unhandled error. (Error: Connection
+        // is closed.)" and a whole suite reported as failed to run (any suite can lose this race; which one does
+        // depends on timing). Let the handshake finish, then close.
+        let timer: NodeJS.Timeout | undefined;
+        try {
+          await Promise.race([
+            queue.waitUntilReady(),
+            new Promise<void>((resolve) => {
+              timer = setTimeout(resolve, QUEUE_READY_WAIT_MS);
+            }),
+          ]);
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
         await queue.close();
       } catch (err) {
         logger.error({ err, queue: queue.name }, 'Error closing BullMQ queue');

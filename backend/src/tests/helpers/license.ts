@@ -68,7 +68,33 @@ export function signToken(
   return `${input}.${signature}`;
 }
 
+/** A "SSO ends on this date" note (modules/license/license.ceiling.ts), signed like SSO signs it. */
+export function signCeiling(
+  key: TestKey,
+  payloadOver: Record<string, unknown> = {},
+  headerOver: Record<string, unknown> = {},
+): string {
+  const header = { alg: 'RS256', typ: 'kcms-license-ceiling+jwt', kid: key.kid, ...headerOver };
+  const payload = {
+    iss: TEST_ISSUER,
+    aud: 'license:ceiling',
+    sys: 'sso',
+    ver: 1,
+    iat: 1_792_394_000,
+    customer: 'Example Corp',
+    expiresAt: '2099-01-01T00:00:00.000Z',
+    graceDays: 14,
+    warnDays: 30,
+    jti: 'sso-ceiling-v1',
+    ...payloadOver,
+  };
+  const input = `${b64(header)}.${b64(payload)}`;
+  return `${input}.${crypto.sign('RSA-SHA256', Buffer.from(input), key.privateKey).toString('base64url')}`;
+}
+
 export interface FakeSsoState {
+  /** Answer of SSO's "SSO ends on this date" route; unset = SSO has no such route (the generic 404). */
+  ceiling?: { status: number; body: unknown } | 'throw';
   /** Token route answer. */
   token?: { status: number; body: unknown } | 'throw' | 'hang';
   /** JWKS keys served at /jwks. */
@@ -95,6 +121,11 @@ export function installFakeSso(state: FakeSsoState) {
           init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
         });
       }
+      return json(answer?.status ?? 404, answer?.body ?? { error: 'invalid_request' });
+    }
+    if (path === '/api/v1/licenses/public/sso-expiry') {
+      const answer = state.ceiling;
+      if (answer === 'throw') throw new Error('ECONNREFUSED');
       return json(answer?.status ?? 404, answer?.body ?? { error: 'invalid_request' });
     }
     if (path === '/jwks') return json(state.jwksStatus ?? 200, { keys: state.keys });

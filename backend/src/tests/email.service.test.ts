@@ -27,6 +27,7 @@ describe('EmailService', () => {
     appConfig.smtp.user = undefined as any;
     appConfig.smtp.pass = undefined as any;
     appConfig.smtp.fromEmail = undefined as any;
+    appConfig.smtp.fromName = undefined as any;
     global.fetch = jest.fn() as any;
   });
 
@@ -38,6 +39,7 @@ describe('EmailService', () => {
     appConfig.smtp.user = originalSmtp.user;
     appConfig.smtp.pass = originalSmtp.pass;
     appConfig.smtp.fromEmail = originalSmtp.fromEmail;
+    appConfig.smtp.fromName = originalSmtp.fromName;
     appConfig.isProduction = originalIsProduction;
     global.fetch = originalFetch;
   });
@@ -70,6 +72,21 @@ describe('EmailService', () => {
       text: 'Hello',
       html: '<p>Hello</p>',
     });
+  });
+
+  it('shows the configured sender name next to the address (SMTP_FROM_NAME) and only then', async () => {
+    const sendMail: any = jest.fn(async () => undefined);
+    (nodemailer.createTransport as unknown as jest.Mock).mockReturnValue({ sendMail });
+    appConfig.smtp.host = 'smtp.example.com' as any;
+    appConfig.smtp.fromEmail = 'no-reply@example.com' as any;
+    appConfig.smtp.fromName = 'Example Guest Management' as any;
+
+    await new EmailService().send({ to: 'guest@example.com', subject: 'Approved', html: '<p>Hello</p>' });
+    expect(sendMail.mock.calls[0][0].from).toEqual({ name: 'Example Guest Management', address: 'no-reply@example.com' });
+
+    appConfig.smtp.fromName = undefined as any;
+    await new EmailService().send({ to: 'guest@example.com', subject: 'Approved', html: '<p>Hello</p>' });
+    expect(sendMail.mock.calls[1][0].from).toBe('no-reply@example.com');
   });
 
   it('prefers SMTP when both SendGrid and SMTP are configured', async () => {

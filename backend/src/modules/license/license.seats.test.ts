@@ -126,6 +126,8 @@ describe('GET /license/status payload', () => {
       licensed: true,
       reason: null,
       deployment: 'sso',
+      // additive (2026-10-21): which date is binding; null here because the fake store reports no limit
+      limitedBy: null,
     });
   });
 

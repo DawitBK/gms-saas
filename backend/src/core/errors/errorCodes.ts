@@ -37,6 +37,8 @@ export enum ErrorCodes {
   LICENSE_MODULE_DISABLED = 'LICENSE_MODULE_DISABLED',
   LICENSE_SEAT_LIMIT = 'LICENSE_SEAT_LIMIT',
   LICENSE_REQUIRED = 'LICENSE_REQUIRED',
+  // Security incident containment (INCIDENT_LOCK_FILE): the system is read-only until the owner clears the lock
+  INCIDENT_READ_ONLY = 'INCIDENT_READ_ONLY',
 
   // Input & General
   INVALID_INPUT = 'INVALID_INPUT',
