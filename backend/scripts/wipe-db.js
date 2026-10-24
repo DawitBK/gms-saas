@@ -1,8 +1,8 @@
 const { Client } = require('pg');
 const envPath = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development';
 // override:true so this file's own DB_* values always win over a stray
-// machine-wide env var (e.g. a leftover Railway/Render DATABASE_URL — see
-// root CLAUDE.md's "Known footguns"). GMS's main app never reads
+// machine-wide env var (e.g. a leftover Railway/Render DATABASE_URL).
+// GMS's main app never reads
 // DATABASE_URL at all (its connection is built from the DB_* keys in
 // src/core/db/config/config.js and src/config/env.schema.ts); this script must not
 // either, since a stray DATABASE_URL pointing at some other Postgres

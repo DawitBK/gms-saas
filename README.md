@@ -8,12 +8,12 @@ Node 22 / Express 5 / Sequelize 6 / PostgreSQL backend on port **7200**; Next.js
 frontend on port **7201**, served at `/gms` behind the shared Apache proxy.
 
 > **This is the only system on the platform with real production data.** `gmsprod` has
-> been live with actual users and there is no staging copy of it. Read `CLAUDE.md` before
+> been live with actual users and there is no staging copy of it. Read [`DEPLOY-WINDOWS-MANUAL.md`](DEPLOY-WINDOWS-MANUAL.md) before
 > running anything with `prod` in its name — three npm scripts drop every table and none
 > of them reads that way.
 
-Platform context — how GMS, DMS and SSO fit together — is in `../CLAUDE.md`. The
-canonical deployment runbook for all three is `/DEPLOYMENT-GUIDE.md` at the repo root.
+Platform context — how GMS, DMS and SSO fit together — is in `MASTER_DOC.md` and in the platform
+architecture document of the SSO edition. The deployment walkthrough is `DEPLOY-WINDOWS-MANUAL.md`.
 
 ## Admin consoles worth knowing about
 
@@ -111,8 +111,8 @@ If the test count changes, run `npm run test:status` and commit the resulting
 | Docker Build | backend + frontend images, `main` only |
 
 Two of these were broken for two months and were repaired on 2026-09-06: the frontend job
-ran a `tests/sample.test.mjs` deleted in July, and the OpenAPI job read a
-`docs/api/openapi.json` deleted in the same commit. Because `docker-build` depends on the
+ran a `sample.test.mjs` deleted in July, and the OpenAPI job read an
+`openapi.json` deleted in the same commit. Because `docker-build` depends on the
 OpenAPI job, it had not run on `main` in that time either.
 
 ## Repository layout
@@ -137,19 +137,17 @@ frontend/
   shared/             components, hooks, lib
   state/              zustand stores
 tools/                cross-workspace scripts: unified test runner, env setup, generators
-vendor/               the vendored xlsx tarball (see CLAUDE.md for why)
+vendor/               the vendored xlsx tarball
 ```
 
 ## Documentation
 
-- `CLAUDE.md` — conventions and the footguns that have actually bitten this repo.
-  Read this one first.
 - `MASTER_DOC.md` — the long-form architecture reference.
 - `PRODUCTION_GUIDE.md` — the detailed PM2/nginx production walkthrough.
 - `DEPLOY-WINDOWS-MANUAL.md` — the plain-Node Windows deploy, GMS-only summary.
 - `SEEDING_COMMANDS.md` — seeders and the Excel bulk-import path.
 - `CONTRIBUTING.md` — branching, commits, what to run before a PR.
 - `docs/TEST_STATUS.md` — generated; CI diffs it.
-- `/DEPLOYMENT-GUIDE.md` (repo root) — the canonical platform deployment runbook.
+- `docs/operations/PLATFORM-LICENSING.md` — the platform licensing contract.
 
-**[`docs/README.md`](docs/README.md) is the documentation index**: reading order, a by-task table, and what is in `docs/` (the generated `TEST_STATUS.md`, `templates/` for the bulk-seeder and retest spreadsheets, `history/` for the old Word master document; moved there on 2026-10-03).
+**[`docs/README.md`](docs/README.md) is the documentation index**: reading order, a by-task table, and what is in `docs/` (the generated `TEST_STATUS.md` and the licensing contract in `docs/operations/`).

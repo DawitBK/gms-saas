@@ -611,11 +611,11 @@ npm run db:backup:prod
 **Backup Location:**
 
 ```
-GMS/backups/gmsprod_production_YYYYMMDD-HHMMSS.sql
+backups/gmsprod_production_YYYYMMDD-HHMMSS.sql
 ```
 
 (Not `backend/backups/` — `scripts/db-backup.js` resolves its output path two
-directories up from `backend/scripts/`, i.e. the `GMS/` repo root, not inside
+directories up from `backend/scripts/`, i.e. the repo root, not inside
 `backend/`. This doc previously said `backend/backups/`, which doesn't match
 where the script actually writes; fixed here so an operator checking the
 documented location doesn't conclude backups aren't running when they're one

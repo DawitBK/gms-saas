@@ -152,10 +152,10 @@ describe('module catalogue', () => {
     expect([...GMS_LICENSE_MODULES].sort()).toEqual([...CONTRACT].sort());
   });
 
-  // GMS is its own repo; the contract lives in the platform repo one level up. Compared when it is there. The test always RUNS
-  // (it returns early when the file is absent, as in CI where only this repo is checked out) instead of being `it.skip`: a skipped test
+  // The contract is docs/operations/PLATFORM-LICENSING.md in this repo and is compared here. The test always RUNS
+  // (it returns early when the file is absent) instead of being `it.skip`: a skipped test
   // changes the Jest totals, and docs/TEST_STATUS.md, which CI regenerates and diffs, must read the same on every machine.
-  const docPath = path.resolve(__dirname, '../../../../../docs/operations/PLATFORM-LICENSING.md');
+  const docPath = path.resolve(__dirname, '../../../../docs/operations/PLATFORM-LICENSING.md');
   it('matches docs/operations/PLATFORM-LICENSING.md section 7 when that file is present', () => {
     if (!fs.existsSync(docPath)) return;
     const lines = fs.readFileSync(docPath, 'utf8').split(/\r?\n/);

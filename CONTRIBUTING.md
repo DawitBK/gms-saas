@@ -19,7 +19,7 @@ PRs work in each one.
 - Follow [Conventional Commits](https://www.conventionalcommits.org/): `<type>: <summary>`,
   e.g. `fix: check SSO role grant before minting a native-login JWT`.
 - Explain *why* in the body when the reason isn't obvious from the diff.
-- Reference the relevant `SSO/docs/platform/DEFECT_AND_GAP_REGISTER.md` entry (e.g.
+- Reference the relevant platform gap-register entry (kept in the SSO edition; e.g.
   `PLATFORM-GAP-012`) when a commit closes or touches one.
 
 ## Before opening a PR
@@ -37,7 +37,7 @@ fail on connection timeouts and teardown hooks rather than on assertions — tha
 the environment, not your change.
 
 If your change affects the test count or coverage, run `npm run test:status` and
-commit the resulting `docs/TEST_STATUS.md` diff (repo root, not `backend/docs`) —
+commit the resulting `docs/TEST_STATUS.md` diff (repo root, not under `backend/`) —
 CI fails the build if this file is stale relative to the actual test run.
 
 ## Pull requests
@@ -52,8 +52,7 @@ CI fails the build if this file is stale relative to the actual test run.
 ## Scope discipline (Directive §8)
 
 This repo is part of an active platform-wide architecture standardization effort
-(see the parent SSO repo's root `Platform_Architecture_Standardization_Directive.md`
-and `SSO/docs/platform/`). Its own governing rule applies to every contribution, not
+(see the platform documents in the SSO edition). Its own governing rule applies to every contribution, not
 just that effort: GMS's role-based state machine and outbox-pattern event processing
 are sound and intentional — the goal of any given change should be to align project
 structure, API design, and platform-wide concerns, not to redesign domain logic. Don't
@@ -68,10 +67,8 @@ description says so explicitly and why.
   trust the source and the scripts where they disagree with its prose.
 - `docs/TEST_STATUS.md` — generated test-status snapshot (see "Before opening a PR"
   above).
-- `CLAUDE.md` (this repo, and the platform root one level up) — durable,
-  cross-session working context. Read it before changing anything.
 
-The doc-rot this section used to flag — `README.md` pointing at `docs/deploy/`,
-`docs/setup/` and `docs/testing/` files that were never in this repo — was cleaned
-up on 2026-09-06. `docs/` contains `TEST_STATUS.md` and nothing else, and README no
-longer claims otherwise.
+The doc-rot this section used to flag — `README.md` pointing at deploy, setup and
+testing files under `docs/` that were never in this repo — was cleaned
+up on 2026-09-06. `docs/` contains `TEST_STATUS.md`, the documentation index and the licensing contract
+(`operations/PLATFORM-LICENSING.md`), and README no longer claims otherwise.

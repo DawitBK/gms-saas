@@ -1,6 +1,6 @@
 // Shared loader for the two mirror-mode scripts (build-mirror.cjs,
 // start-mirror.cjs). GMS's own scripts/run-next-with-env.js is a protected
-// reference-implementation script (see GMS/CLAUDE.md — env loading is not to
+// reference-implementation script (env loading is not to
 // be changed) and it only ever loads `.env`/`.env.<mode>`/`.env.local`, with
 // no concept of a `mirror` mode; it also has a latent bug where it appends
 // `-p <port>` to `next build`, which the Next CLI rejects outright. Rather
@@ -18,7 +18,7 @@ function loadMirrorEnv() {
   if (!fs.existsSync(mirrorEnvPath)) {
     console.error(
       `[mirror] ${mirrorEnvPath} does not exist.\n` +
-        'This is the isolated local prod-mirror environment (see root CLAUDE.md) — ' +
+        'This is the isolated local prod-mirror environment — ' +
         'it is never `.env`/`.env.development` or `.env.production`.',
     );
     process.exit(1);

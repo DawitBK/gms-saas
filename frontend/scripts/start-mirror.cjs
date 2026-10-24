@@ -1,5 +1,5 @@
 // Mirror equivalent of `npm run start:standalone` (the actual command
-// production-start.bat runs for GMS's frontend). Loads .env.mirror, preps
+// the production start script runs for GMS's frontend). Loads .env.mirror, preps
 // the standalone bundle the same way run-next-with-env.js does (copies
 // public/ and the configured distDir/static tree into the standalone server,
 // since Next's standalone output does not include either by default), then

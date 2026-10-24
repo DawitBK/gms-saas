@@ -22,7 +22,7 @@
  * Safe to re-run: a redacted row no longer matches. DRY RUN BY DEFAULT: it
  * reports counts (never the codes) and changes nothing unless --apply is given.
  *
- * Usage (from GMS/backend):
+ * Usage (from backend):
  *   dev:   node scripts/run-with-env.js development scripts/redact-outbox-otps.ts            (dry run)
  *          node scripts/run-with-env.js development scripts/redact-outbox-otps.ts --apply
  *   live:  node scripts/run-with-env.js production  scripts/redact-outbox-otps.ts            (dry run first)

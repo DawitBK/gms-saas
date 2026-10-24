@@ -37,7 +37,7 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
 # The platform reserves 7201 for the GMS browser client, in dev and prod alike
-# (see the port convention in the root CLAUDE.md). EXPOSE is documentation, but
+# (the platform's port convention). EXPOSE is documentation, but
 # 3000 was left over from before that convention and read as the real port.
 EXPOSE 7201
 USER node

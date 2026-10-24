@@ -46,7 +46,7 @@ const createStore = (prefix: string) => {
  * limiter from the request completely. So these two env vars were an off switch
  * for EVERY limiter below (global, auth, critical-action, per-user), with no
  * environment guard: a machine-wide `DISABLE_RATE_LIMIT=true` -- exactly the
- * ambient-env-var failure mode root CLAUDE.md documents for DATABASE_URL --
+ * ambient-env-var failure mode known from DATABASE_URL --
  * would silently disable all brute-force protection in production.
  *
  * Neither var is set in any committed env file today (SIMULATION_LIVE_MODE

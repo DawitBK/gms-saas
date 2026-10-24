@@ -153,7 +153,7 @@ export const envSchema = z.object({
     z.string().min(1).optional(),
   ),
   // Incident containment: while this FILE exists every state-changing request answers 403 INCIDENT_READ_ONLY (sign-in, health and the licence routes
-  // excepted). Unset = off. The release tooling sets it to <data-dir>/incident.lock; the owner clears it with deploy/tamper/tamper.cjs.
+  // excepted). Unset = off. A deployment that uses incident containment points it at <data-dir>/incident.lock; the owner clears it from a terminal.
   INCIDENT_LOCK_FILE: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.string().min(1).optional(),

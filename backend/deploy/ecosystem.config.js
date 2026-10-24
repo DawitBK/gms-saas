@@ -3,15 +3,14 @@
 // the checked-out repo even though those scripts already assumed it existed
 // (backend/pm2/ecosystem.config was left as an empty placeholder).
 //
-// PATHS CORRECTED 2026-09-06. `cwd` and the log paths pointed at
-// "B:\GMS RELEASE\backend", which production-start.bat's own header identifies
-// as "a stale June checkout that is NOT what is running" — the live GMS backend
-// was confirmed loading its native modules out of
-// B:\Company_Systems\GMS\backend. PM2 would have started the wrong copy of
-// the application, or failed to start at all. Update these if the server moves.
+// PATHS CORRECTED 2026-09-06. `cwd` and the log paths pointed at a stale
+// June checkout that was NOT what was running; the live GMS backend was confirmed
+// loading its native modules out of the folder now named below. PM2 would have
+// started the wrong copy of the application, or failed to start at all. Update these
+// if the server moves.
 //
 // Note: the real server currently launches GMS via plain `npm start` in a cmd
-// window (production-start.bat), not PM2 — this file is here for whenever PM2
+// window (a start script), not PM2 — this file is here for whenever PM2
 // process supervision is actually adopted, not a claim that it is running that
 // way today.
 //

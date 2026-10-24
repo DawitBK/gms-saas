@@ -1,9 +1,8 @@
 # GMS — manual Windows deploy
 
-**`/DEPLOYMENT-GUIDE.md` at the repo root is the canonical runbook.** It covers all three
-systems behind the one shared Apache vhost and is the file kept in step with the code.
-This page is the GMS-only summary, kept because DMS and SSO each have a same-named
-per-system page. When the two disagree, the deployment guide is right.
+**This page is the GMS deploy walkthrough for a plain Node process on Windows.** DMS and
+SSO each have a same-named page in their own editions; all three sit behind one shared
+Apache vhost, whose configuration is site-specific and not part of this repository.
 
 > **`gmsprod` is the only database on this platform with real production data, and there
 > is no staging copy of it.** Nothing below seeds, wipes or resets anything. If you find
@@ -46,8 +45,7 @@ lost — do not push to it.
 
 Create `backend\.env.production` and `frontend\.env.production` from the matching
 `.env.example` files. Both are gitignored because they hold real secrets, so neither is
-part of a clone or a file copy — they have to be placed on the machine by hand. See
-`/MANUAL-TRANSFER-TO-SERVER.md`.
+part of a clone or a file copy — they have to be placed on the machine by hand.
 
 **Production reads `.env.production` and nothing else.** `.env` is the development file
 and is never read when `NODE_ENV=production`; a missing `.env.production` is a hard
@@ -131,8 +129,8 @@ Socket.IO needs the `Upgrade` and `Connection` headers forwarded; `/socket.io/` 
 belongs to GMS for the same historical reason.
 
 The SSO same-origin gateway that carries the SSO-to-GMS handoff runs in the *SSO* repo
-(`SSO/backend/src/gateway/`), not here. `/DEPLOYMENT-GUIDE.md` §2.1 has the one narrow
-`/gms/__sso` Apache rule it needs.
+(its backend gateway), not here. The one narrow `/gms/__sso` Apache rule it needs sends
+that path to the gateway on `127.0.0.1:4200`.
 
 ## 7. Redeploy
 
@@ -151,7 +149,7 @@ gitignored and live only on the server.
 ```powershell
 cd C:\apps\gms\backend
 npm run db:backup:prod
-.\scripts\register-backup-task.ps1
+.\scripts\register-backup-task.ps1 -BackendPath C:\apps\gms\backend
 ```
 
 `gmsprod` holds the only real production data on the platform. Ship the dumps off-server.

@@ -48,7 +48,7 @@ for (const envFile of envFiles) {
         'Production configuration is read from .env.production ONLY — `.env` is the development ' +
         'file and is deliberately not read in production.\n' +
         '.env.production is gitignored (it holds real secrets) so it is never part of a clone or a ' +
-        'file copy: it has to be placed on this machine by hand. See MANUAL-TRANSFER-TO-SERVER.md.',
+        'file copy: it has to be placed on this machine by hand.',
     );
     process.exit(1);
   }

@@ -30,7 +30,7 @@ const loggerOptions: pino.LoggerOptions = {
 // pino-roll rotates from inside the process (size- and/or time-based),
 // unlike plain pino/file — which never rotates on its own and, since this
 // box has no process supervisor to signal a reopen after an external
-// rename (no PM2/Docker/NSSM — see SERVER-INFRASTRUCTURE-AUDIT.md), an
+// rename (no PM2/Docker/NSSM), an
 // external rotation script would either lose the rename to the open file
 // handle or require a restart to take effect. 20MB/file, daily, 14 kept.
 const baseLogger = appConfig.isProduction

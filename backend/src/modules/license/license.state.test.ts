@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { computeLicenseState, DAY_MS, type LicenseDates } from './license.state';
 
-// license.state.ts is a VERBATIM copy of SSO/backend/src/licenses/state.ts (contract section 3); these tests pin the behaviour
+// license.state.ts is a VERBATIM copy of the licence state.ts in the SSO edition (contract section 3); these tests pin the behaviour
 // the three systems must share.
 const EXPIRES = new Date('2027-01-01T00:00:00.000Z');
 const at = (offsetMs: number) => new Date(EXPIRES.getTime() + offsetMs);

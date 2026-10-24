@@ -3,7 +3,7 @@
   Registers a Scheduled Task that runs GMS's existing `npm run db:backup:prod`
   nightly. The script (scripts/db-backup.js) already exists and works  -  this
   is the missing piece: nothing confirms it's actually scheduled on the live
-  server today (see /docs/operations/PLATFORM-OPERATIONS-GUIDE.md Section 1.3). RUN THIS ON THE LIVE
+  server today. RUN THIS ON THE LIVE
   SERVER.
 #>
 
@@ -41,11 +41,11 @@ $trigger = New-ScheduledTaskTrigger -Daily -At $At
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings `
-  -Description "Nightly gmsprod backup via db-backup.js. See PRODUCTION_GUIDE.md Section 5/Section 6 and /docs/operations/PLATFORM-OPERATIONS-GUIDE.md Section 1.3." `
+  -Description "Nightly gmsprod backup via db-backup.js. See PRODUCTION_GUIDE.md Section 5/Section 6." `
   -RunLevel Highest
 
 Write-Host "Registered '$TaskName' (daily at $At). Verify with:"
 Write-Host "  Get-ScheduledTask -TaskName '$TaskName' | Get-ScheduledTaskInfo"
 Write-Host ""
 Write-Host "Test immediately: Start-ScheduledTask -TaskName '$TaskName'"
-Write-Host "Then check GMS\backups\ (repo root, not backend\backups\) for a new .sql file."
+Write-Host "Then check backups\ (repo root, not backend\backups\) for a new .sql file."

@@ -195,6 +195,6 @@ reports created/existing/error counts per sheet.
 
 An earlier version of this file also carried a Linux/Ubuntu server bring-up walkthrough
 and a June 2026 error log from the original bulk-import exercise. The server is Windows,
-not Linux, and the deployment procedure lives in `DEPLOY-WINDOWS-MANUAL.md`,
-`PRODUCTION_GUIDE.md` and `/DEPLOYMENT-GUIDE.md` — one canonical place each. Both were
+not Linux, and the deployment procedure lives in `DEPLOY-WINDOWS-MANUAL.md`
+and `PRODUCTION_GUIDE.md` — one canonical place each. Both were
 removed on 2026-09-06.

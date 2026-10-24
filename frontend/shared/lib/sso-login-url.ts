@@ -3,13 +3,13 @@
 // Unlike resolveApiBaseUrl/resolveSocketUrl/resolveAppUrl in api-base-url.ts and
 // runtime-origin.ts, this URL is NOT same-origin-adjusted for the SSO gateway
 // (gms.localtest.me:4200): the gateway only proxies /__sso, /api/v1, and
-// /socket.io back to GMS itself (see SSO/backend/src/gateway/server.ts) — it does
+// /socket.io back to GMS itself (see the gateway in the SSO backend) — it does
 // not host the SSO frontend's /bridge routes. So this always points at the
-// separate SSO frontend origin (port 7301 in dev; SSO/frontend/src/server.ts),
+// separate SSO frontend origin (port 7301 in dev; the SSO frontend's server),
 // whether GMS itself is being viewed directly at :7201 or through the gateway.
 //
 // The target route is /bridge/gms/start on the SSO frontend (proxied through to
-// the SSO backend — see SSO/backend/src/bridge/router.ts's `router.get('/gms/start', ...)`).
+// the SSO backend — see the SSO backend's bridge router, `router.get('/gms/start', ...)`).
 // That route kicks off an OIDC authorization_code+PKCE round trip against the SSO
 // backend's own /authorize endpoint: if the browser has no SSO session yet, the
 // user is prompted to sign in there first; either way, the flow ends at

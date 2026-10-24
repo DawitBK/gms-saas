@@ -4,11 +4,11 @@ const path = require('path');
 
 // GMS's own env loader (src/config/index.ts, src/core/db/config/config.js) is
 // the platform's reference implementation and is deliberately NOT changed for
-// this — see GMS/CLAUDE.md. It only recognizes NODE_ENV=production/test and
+// this. It only recognizes NODE_ENV=production/test and
 // treats everything else as 'development', loading `.env` then `.env.<mode>`
 // LAYERED. That means the only way to hand it mirror-specific values in total
 // ISOLATION (no silent fallback to a real dev secret this file doesn't
-// mention — the exact footgun the root CLAUDE.md documents for prod) is to
+// mention — the exact footgun known for prod) is to
 // mask the real `.env`/`.env.development` out of the way and materialize
 // `.env.mirror`'s content as a fresh `.env.development` for GMS's untouched
 // loader to read under NODE_ENV=development, then restore everything
@@ -23,8 +23,8 @@ const path = require('path');
 // `.env.mirror-masked` and `.env.development` sitting as a byte-for-byte copy
 // of `.env.mirror` — PORT=9200, DB_NAME=gmsprod, DB_USER=postgres — for over
 // a month, undetected, because dev happened not to be started again in that
-// window. GMS is the one system in this platform with real production data
-// (root CLAUDE.md), so a dev boot silently pointed at gmsprod as a superuser
+// window. GMS is the one system in this platform with real production data,
+// so a dev boot silently pointed at gmsprod as a superuser
 // is about as bad as this class of bug gets.
 //
 // A signal handler can't fix a SIGKILL — nothing downstream of the kill can
@@ -72,7 +72,7 @@ function applyMirrorEnv() {
   if (!fs.existsSync(mirrorPath)) {
     console.error(
       `CRITICAL: .env.mirror not found at ${mirrorPath}.\n` +
-        'The prod-mirror environment (see root CLAUDE.md) reads its config from ' +
+        'The prod-mirror environment reads its config from ' +
         '.env.mirror ONLY. It is gitignored and has to be placed on this machine by hand.',
     );
     process.exit(1);

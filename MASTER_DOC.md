@@ -52,10 +52,11 @@ flowchart LR
 ```
 
 This document was synthesized from `README.md`, the per-module READMEs under
-`backend/src/modules/`, and the source itself. It also cited a `docs/` tree —
-`docs/ARCHITECTURE.md`, `docs/codebase/`, `docs/developer/`, `docs/testing/`,
-`docs/deploy/`, `docs/unifi/` — and `backend/OUTBOX_WORKER.md`. **None of those exist
-in this repo**; `docs/` contains `TEST_STATUS.md` and nothing else. Those citations
+`backend/src/modules/`, and the source itself. It also cited a `docs/` tree (an
+architecture document and codebase, developer, testing, deploy and unifi folders) and a
+backend outbox-worker document. **None of those exist in this repo**; `docs/` contains
+`TEST_STATUS.md`, the documentation index and the licensing contract
+(`operations/PLATFORM-LICENSING.md`). Those citations
 were removed on 2026-09-06. **The executable source is the authority**, and that
 matters more here than usual: this file is long and parts of it have drifted.
 
@@ -1500,7 +1501,7 @@ All normal backend routes are under `/api/v1` by default. The base path comes fr
 | POST | `/simulation/stop` | See route | Stop simulation engine. |
 | GET | `/simulation/status` | See route | Simulation status. |
 
-Note: the OpenAPI spec says `/ocr/scan` has auth, but `backend/src/modules/ocr/ocr.routes.ts` does not call `requireAuth` — re-verified 2026-09-06, the route still has only `authLimiter` and body validation, and `api/v1/index.ts` applies no blanket auth. Trust the code: OCR scan is public. (The spec lives in `backend/src/api/swagger.ts`; the `docs/api/openapi.json` this note used to cite was deleted in July 2026.)
+Note: the OpenAPI spec says `/ocr/scan` has auth, but `backend/src/modules/ocr/ocr.routes.ts` does not call `requireAuth` — re-verified 2026-09-06, the route still has only `authLimiter` and body validation, and `api/v1/index.ts` applies no blanket auth. Trust the code: OCR scan is public. (The spec lives in `backend/src/api/swagger.ts`; the `openapi.json` this note used to cite was deleted in July 2026.)
 
 ### Request/Response Shape
 
@@ -1700,7 +1701,7 @@ Secrets are managed through `.env` files locally and `.env.production`/container
 | SMS / Africa's Talking | `infrastructure/sms/sms.service.ts` | SMS jobs can fail and be retried/dead-lettered. |
 | UniFi Access | `infrastructure/unifi`, `modules/unifi-webhooks` | Provisioning can fall back to internal QR depending config and service logic. |
 | Sentry | `shared/services/sentry.service.ts` | Optional; capture no-ops if DSN absent. |
-| Web Push | `shared/services/web-push.service.ts`, notifications module | VAPID route exposes key; push disabled if keys absent. |
+| Web Push | `infrastructure/push/web-push.service.ts`, notifications module | VAPID route exposes key; push disabled if keys absent. |
 | Tesseract OCR | `shared/services/ocr.service.ts` | OCR scan throws and returns structured error. |
 
 UniFi webhook ingestion route:
@@ -1824,8 +1825,8 @@ flowchart TD
 ```
 
 CI steps (repaired 2026-09-06 — the old `frontend-tests` job ran a deleted
-placeholder test and failed on every push for two months; see GMS's own
-CLAUDE.md for that history):
+placeholder test and failed on every push for two months; see
+README.md for that history):
 
 | Job | What It Does |
 |---|---|
@@ -1845,9 +1846,8 @@ Backend includes PM2 commands:
 "deploy:manual": "npm run build && pm2 reload gms-api || pm2 start deploy/ecosystem.config.js --only gms-api"
 ```
 
-Deployment is documented in `DEPLOY-WINDOWS-MANUAL.md` (plain Node on Windows),
-`PRODUCTION_GUIDE.md` (PM2 + nginx), and `/DEPLOYMENT-GUIDE.md` at the platform root,
-which is canonical. Trust the actual scripts and `backend/deploy/ecosystem.config.js`
+Deployment is documented in `DEPLOY-WINDOWS-MANUAL.md` (plain Node on Windows) and
+`PRODUCTION_GUIDE.md` (PM2 + nginx). Trust the actual scripts and `backend/deploy/ecosystem.config.js`
 when they differ from prose.
 
 Monitoring/logging:
@@ -2220,7 +2220,7 @@ it('allows the assigned host to mark a visit VIP', async () => {
 });
 ```
 
-Step 11: Update the OpenAPI spec and this document. `npm run test:openapi-coverage` gates CI, so a new route fails the build unless it is documented. The spec is `backend/src/api/swagger.ts` — a hand-written object, not generated from JSDoc (the unused `swagger-jsdoc` dependency that implied otherwise was removed on 2026-09-06). Add `POST /visits/{id}/vip` to its `paths`. (Until 2026-09-06 this step named `docs/api/openapi.yaml`/`.json`, which were deleted in July 2026 — which is why that gate had been failing on every push for two months.)
+Step 11: Update the OpenAPI spec and this document. `npm run test:openapi-coverage` gates CI, so a new route fails the build unless it is documented. The spec is `backend/src/api/swagger.ts` — a hand-written object, not generated from JSDoc (the unused `swagger-jsdoc` dependency that implied otherwise was removed on 2026-09-06). Add `POST /visits/{id}/vip` to its `paths`. (Until 2026-09-06 this step named `openapi.yaml`/`.json`, which were deleted in July 2026 — which is why that gate had been failing on every push for two months.)
 
 ### Debugging Workflows
 
@@ -2240,7 +2240,7 @@ Use `withTransaction` whenever multiple domain writes must succeed together. Use
 
 Frontend code should go through feature APIs and hooks. Components should not sprinkle raw `apiClient.post(...)` calls everywhere. Shared UI belongs under `frontend/shared`, while route pages belong under `frontend/app`.
 
-Git workflow is documented in `CONTRIBUTING.md` and `docs/BRANCHING_STRATEGY.md`. CI runs on PRs and pushes; main/master builds Docker images. The current repository has unrelated uncommitted changes to root package files and generated document artifacts, so check `git status --short` before staging.
+Git workflow is documented in `CONTRIBUTING.md`. CI runs on PRs and pushes; main/master builds Docker images. The current repository has unrelated uncommitted changes to root package files and generated document artifacts, so check `git status --short` before staging.
 
 ---
 
@@ -2335,7 +2335,7 @@ logger.warn(
 
 **Update (2026-07-12):** this gotcha is resolved, not by building the missing worker, but by removing the dead reference. `identity.worker` is no longer listed in `workerModules`, and the matching `enqueueJob(QUEUE_NAMES.IDENTITY_VERIFICATION, ...)` call in `auth.service.ts#register` is commented out with an explanatory note — both were producing rows/log noise for a feature with no consumer. If identity verification is ever actually built, re-add both together (worker module, dispatcher case, registry entry, enqueue call) rather than one at a time.
 
-Original symptom (for history): worker startup logged an error about a module failing to load. The system still appeared healthy, because the registry caught the error and continued starting other workers — the cause was `backend/src/infrastructure/queue/workers/index.ts` listing `./identity.worker` in `workerModules` with no corresponding file, while `auth.service.ts` still queued `IDENTITY_VERIFICATION` jobs nothing ever consumed.
+Original symptom (for history): worker startup logged an error about a module failing to load. The system still appeared healthy, because the registry caught the error and continued starting other workers — the cause was `backend/src/infrastructure/queue/workers/index.ts` listing `identity.worker` in `workerModules` with no corresponding file, while `auth.service.ts` still queued `IDENTITY_VERIFICATION` jobs nothing ever consumed.
 
 ### Gotcha 6: OCR Route Is Public In Code Despite OpenAPI Saying Auth — INTENTIONAL, NOW RATE-LIMITED
 
@@ -3200,7 +3200,7 @@ export const useUrgentVisits = (filter: VisitUrgencyFilter = 'all') => {
 };
 ```
 
-Step 3: create a component under `frontend/features/visits/components/UrgentVisitsPanel.tsx`. This belongs in the feature folder because the panel is visit-specific, not a shared UI primitive.
+Step 3: create a component (for example `UrgentVisitsPanel`) under `frontend/features/visits/components/`. This belongs in the feature folder because the panel is visit-specific, not a shared UI primitive.
 
 ```tsx
 'use client';
@@ -3366,7 +3366,6 @@ Finally, remember that realtime cleanup has a known issue already called out in 
 | `backend/.sequelizerc` | Sequelize CLI paths. |
 | `backend/src/core/db/config/config.js` | Sequelize CLI DB config. |
 | `backend/deploy/ecosystem.config.js` | Backend PM2 config. |
-| `frontend/deploy/ecosystem.config.js` | Frontend PM2 config. |
 
 ### Scripts And Commands
 

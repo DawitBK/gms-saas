@@ -62,8 +62,8 @@ export const resolveApiBaseUrl = (options: ResolveApiBaseUrlOptions = {}) => {
     }
 
     // No basePath prefix here: GMS's API stays unprefixed at /api/v1 even in
-    // production (root CLAUDE.md — "GMS's own /api/v1 stays unprefixed, it's
-    // already live and proven, don't touch its routing"), unlike the
+    // production (GMS's own /api/v1 stays unprefixed, it's
+    // already live and proven, don't touch its routing), unlike the
     // frontend pages themselves, which do sit under /gms. Dead today since
     // .env.production always sets NEXT_PUBLIC_API_BASE_URL explicitly, but
     // `${basePath}/api/v1` here would nest under /gms/api/v1 if that var

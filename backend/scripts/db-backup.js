@@ -17,7 +17,7 @@ const envFile = mode === 'production' ? '.env.production' : '.env';
 
 // 2. Load env manually to avoid dependency on the full backend bootstrapper.
 // override:true so a stray machine-wide DB_* env var can't silently win over
-// this file's own values (see root CLAUDE.md's "Known footguns").
+// this file's own values.
 const envPath = path.resolve(__dirname, '..', envFile);
 if (fs.existsSync(envPath)) {
   dotenv.config({ path: envPath, override: true });

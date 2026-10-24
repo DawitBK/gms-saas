@@ -3,7 +3,7 @@
  *
  * GMS holds no flag for it: the platform administrator reaches GMS through the
  * SSO token bridge as an ordinary `super_admin` account. When the SSO side stores
- * the owner under a keyed pseudonym (see SSO/backend/src/auth/platform-admin.ts),
+ * the owner under a keyed pseudonym (see SSO's `platform-admin.ts`),
  * that account's email ends in `@platform.invalid`, a reserved top-level domain
  * that can never be a real mailbox. That suffix is therefore a safe marker, and
  * this module is its single definition for GMS.

@@ -28,9 +28,9 @@ export const appConfig = {
    * Loopback by default in EVERY environment. This previously read
    * `env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1'` — i.e. it bound
    * loopback in dev and every interface in production, which is backwards, and
-   * directly contradicts DEPLOYMENT-GUIDE.md's C5 pre-deploy check ("All 4 API
+   * directly contradicts the C5 pre-deploy check ("All 4 API
    * ports loopback-only: 7100/7200/7300/7400 … Nothing on 0.0.0.0") plus
-   * SERVER-INFRASTRUCTURE-AUDIT.md §2 ("80/443 through Apache is the only
+   * the platform's stated architecture ("80/443 through Apache is the only
    * sanctioned public entry point"). Set HOST explicitly only for a genuine
    * multi-host topology.
    */
@@ -46,7 +46,7 @@ export const appConfig = {
    *
    * It cannot be narrowed to `/gms` (the SPA's prefix): GMS's API is mounted at
    * the UNPREFIXED `/api/v1` on the shared origin — a deliberate, protected
-   * decision because that routing is already live and proven (root CLAUDE.md) —
+   * decision because that routing is already live and proven —
    * and `/api/v1/auth/refresh` is the only thing that ever reads this cookie. So
    * scope it to the API prefix, which is exclusively GMS's, and it stops being
    * sent to the sibling systems AND to GMS's own page routes, which never need it.
