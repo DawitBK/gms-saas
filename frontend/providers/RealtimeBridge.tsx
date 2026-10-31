@@ -9,6 +9,11 @@ import { resolveSocketUrl } from '@shared/lib/runtime-origin';
 import { isHostRole, isReceptionRole } from '@shared/lib/roles';
 import { Socket } from 'socket.io-client';
 
+// A host that cannot pass a WebSocket upgrade (Vercel's rewrites) sets NEXT_PUBLIC_SOCKET_TRANSPORTS=polling, so the browser does not
+// make an upgrade attempt that is certain to fail and log an error on every page. Everywhere else the default stands: WebSocket first.
+const SOCKET_TRANSPORTS: ('websocket' | 'polling')[] =
+  process.env.NEXT_PUBLIC_SOCKET_TRANSPORTS === 'polling' ? ['polling'] : ['websocket', 'polling'];
+
 const JOIN_OFFICE_EVENT = 'gms:join-office';
 const JOIN_VISIT_EVENT = 'gms:join-visit';
 const LEAVE_VISIT_EVENT = 'gms:leave-visit';
@@ -124,7 +129,7 @@ export function RealtimeBridge() {
       socket = io(socketUrl, {
         path: socketPath,
         auth: { token: accessToken },
-        transports: ['websocket', 'polling'], // Allow fallback to polling if websocket fails
+        transports: SOCKET_TRANSPORTS,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
       });
