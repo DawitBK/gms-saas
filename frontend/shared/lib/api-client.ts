@@ -161,7 +161,21 @@ export const bootstrapAccessToken = async (): Promise<string | null> => {
   }
 };
 
-apiClient.interceptors.request.use((config) => {
+// Calls that carry no access token on purpose: they sign in, or they are the refresh itself (waiting on it from here would wait on itself).
+const isAuthAttemptUrl = (url: string) =>
+  url.includes('/auth/login') ||
+  url.includes('/auth/register') ||
+  url.includes('/auth/refresh') ||
+  url.includes('/auth/verify-password');
+
+apiClient.interceptors.request.use(async (config) => {
+  // A reloaded tab knows who is signed in but holds no access token yet. React runs a page's effects before the provider's own
+  // bootstrap effect, so the page's first calls used to leave without a token, come back 401 and only then retry. Waiting for the
+  // one shared refresh here sends them with a token the first time; bootstrapAccessToken joins a refresh already under way.
+  const { authenticated, accessToken } = useAuthStore.getState();
+  if (authenticated && !accessToken && !isAuthAttemptUrl(String(config.url ?? ''))) {
+    await bootstrapAccessToken();
+  }
   return applyAuthHeaders(config);
 });
 
@@ -207,11 +221,7 @@ apiClient.interceptors.response.use(
     const status = error?.response?.status;
     const requestConfig = error?.config as RetryableRequestConfig | undefined;
     const requestUrl = String(requestConfig?.url ?? '');
-    const isAuthAttempt =
-      requestUrl.includes('/auth/login') ||
-      requestUrl.includes('/auth/register') ||
-      requestUrl.includes('/auth/refresh') ||
-      requestUrl.includes('/auth/verify-password');
+    const isAuthAttempt = isAuthAttemptUrl(requestUrl);
 
     if (status === 401 && requestConfig && !requestConfig._retry && !isAuthAttempt) {
       requestConfig._retry = true;
